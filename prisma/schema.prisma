@@ -1,0 +1,170 @@
+// This is your Prisma schema file
+// Learn more about it at https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── SETTINGS ───────────────────────────────────────────────────────────────
+
+model Settings {
+  id                  Int     @id @default(1)
+  accountSize         Float   @default(100000)
+  dailyLossLimit      Float   @default(2000)
+  trailingDrawdown    Float   @default(3000)
+  profitTarget        Float   @default(6000)
+  maxTradesPerDay     Int     @default(2)
+  maxLosingTradesPerDay Int   @default(2)
+  mnqEnabled          Boolean @default(true)
+  nqEnabled           Boolean @default(false)
+  telegramBotToken    String? @default("")
+  telegramChatId      String? @default("")
+  tradingViewWebhookSecret String? @default("")
+  // TopstepX scaffold — disabled until API docs provided
+  topstepxApiKey      String? @default("")
+  topstepxAccountId   String? @default("")
+  topstepxBaseUrl     String? @default("https://api.topstepx.com")
+  enableOrderExecution Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// ─── SESSIONS ────────────────────────────────────────────────────────────────
+
+model Session {
+  id              String   @id @default(cuid())
+  date            String   // "YYYY-MM-DD"
+  market          String   @default("MNQ")
+
+  // Opening Range
+  orHigh          Float?
+  orLow           Float?
+  orSize          Float?   // calculated: orHigh - orLow
+
+  // Market Conditions
+  directionBias   String   @default("neutral") // "bullish" | "bearish" | "neutral"
+  hasHighImpactNews Boolean @default(false)
+  newsNotes       String?  @default("")
+  vixLevel        Float?
+  vixExtreme      Boolean  @default(false)
+  qqpAligned      Boolean  @default(false)
+  us10yAgainst    Boolean  @default(false)
+  dxyAgainst      Boolean  @default(false)
+  cleanRoomToTarget Boolean @default(true)
+
+  // Score
+  score           Int      @default(0)
+  decision        String   @default("NO_TRADE") // "TRADE" | "CAUTION" | "NO_TRADE"
+  decisionReason  String   @default("")
+
+  // Daily tracking
+  dailyPnl        Float    @default(0)
+  tradesCount     Int      @default(0)
+  losesCount      Int      @default(0)
+
+  trades          Trade[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([date])
+  @@map("sessions")
+}
+
+// ─── TRADES ──────────────────────────────────────────────────────────────────
+
+model Trade {
+  id            String   @id @default(cuid())
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id])
+
+  date          String   // "YYYY-MM-DD"
+  time          String?  // "HH:MM"
+  market        String   @default("MNQ")
+  direction     String   // "LONG" | "SHORT"
+  contracts     Int      @default(1)
+
+  // Prices
+  entry         Float
+  stop          Float
+  target        Float
+  exit          Float?
+
+  // Results
+  resultPts     Float?   // exit - entry (for long), entry - exit (for short)
+  resultDollars Float?   // resultPts * pointValue * contracts
+  resultR       Float?   // resultPts / riskPts
+
+  // Quality
+  setupScore    Int?
+  ruleFollowed  Boolean  @default(true)
+  emotionLevel  Int?     // 1-5
+  mistakeNotes  String?  @default("")
+  notes         String?  @default("")
+
+  // Status
+  status        String   @default("OPEN") // "OPEN" | "WIN" | "LOSS" | "BE"
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("trades")
+}
+
+// ─── WEBHOOK EVENTS ──────────────────────────────────────────────────────────
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  source      String   @default("tradingview")
+  payload     String   // raw JSON string
+  processed   Boolean  @default(false)
+  alertSent   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("webhook_events")
+}
+
+// ─── ACCOUNT SNAPSHOTS ───────────────────────────────────────────────────────
+
+model AccountSnapshot {
+  id          String   @id @default(cuid())
+  date        String   // "YYYY-MM-DD"
+  balance     Float
+  dailyPnl    Float    @default(0)
+  totalPnl    Float    @default(0)
+  source      String   @default("manual") // "manual" | "topstepx"
+  createdAt   DateTime @default(now())
+
+  @@map("account_snapshots")
+}
+
+// ─── TOPSTEPX SCAFFOLD ───────────────────────────────────────────────────────
+// These tables are ready for when read-only API access is enabled
+
+model BrokerConnection {
+  id          String   @id @default(cuid())
+  provider    String   @default("topstepx")
+  status      String   @default("disconnected") // "connected" | "disconnected" | "error"
+  lastSync    DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@map("broker_connections")
+}
+
+model SyncLog {
+  id          String   @id @default(cuid())
+  provider    String   @default("topstepx")
+  action      String
+  status      String   // "success" | "error"
+  message     String?
+  createdAt   DateTime @default(now())
+
+  @@map("sync_logs")
+}
