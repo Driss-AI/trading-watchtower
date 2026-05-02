@@ -172,7 +172,7 @@ export async function fetchEconomicCalendar(): Promise<NewsEvent[]> {
         time: e.time ?? 'All Day',
         title: e.title ?? '',
         currency: e.currency ?? 'USD',
-        impact: e.impact?.toLowerCase() === 'high' ? 'high' : e.impact?.toLowerCase() === 'medium' ? 'medium' : 'low',
+        impact: (e.impact?.toLowerCase() === 'high' ? 'high' : e.impact?.toLowerCase() === 'medium' ? 'medium' : 'low') as 'high' | 'medium' | 'low',
         forecast: e.forecast ?? undefined,
         previous: e.previous ?? undefined,
       }))
