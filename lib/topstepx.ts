@@ -1,139 +1,233 @@
-// ─── TOPSTEPX READ-ONLY API SCAFFOLD ─────────────────────────────────────────
-// ⚠️  NOT ACTIVATED — Scaffold ready for when API credentials are provided
-// ⚠️  ORDER EXECUTION IS PERMANENTLY DISABLED
-// ⚠️  This provider is READ-ONLY: account status, P&L, positions, orders only
+// ─── TOPSTEPX / PROJECTX API — FULLY IMPLEMENTED ────────────────────────────
+// READ-ONLY: account status, P&L, positions, market data bars
+// ORDER EXECUTION IS PERMANENTLY DISABLED — NEVER REMOVE THIS
+//
+// API Base:    https://api.topstepx.com
+// Auth:        POST /api/Auth/loginKey → JWT (24h valid)
+// Docs:        https://gateway.docs.projectx.com
 
-export interface BrokerProvider {
-  getAccountStatus(): Promise<AccountStatus>
-  getDailyPnL(): Promise<DailyPnL>
-  getOpenPositions(): Promise<Position[]>
-  getOrders(): Promise<Order[]>
-  getExecutions(): Promise<Execution[]>
+const BASE_URL = process.env.TOPSTEPX_BASE_URL ?? 'https://api.topstepx.com'
+
+// ─── TOKEN CACHE ─────────────────────────────────────────────────────────────
+let _tokenCache: { token: string; expiresAt: number } | null = null
+
+export async function getTopstepXToken(): Promise<string> {
+  if (_tokenCache && Date.now() < _tokenCache.expiresAt - 30 * 60 * 1000) {
+    return _tokenCache.token
+  }
+
+  const userName = process.env.TOPSTEPX_USERNAME ?? ''
+  const apiKey   = process.env.TOPSTEPX_API_KEY   ?? ''
+
+  if (!userName || !apiKey) {
+    throw new Error('TopstepX not configured. Set TOPSTEPX_USERNAME and TOPSTEPX_API_KEY in Railway Variables.')
+  }
+
+  const res = await fetch(`${BASE_URL}/api/Auth/loginKey`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ userName, apiKey }),
+    cache: 'no-store',
+  })
+
+  if (!res.ok) throw new Error(`TopstepX auth HTTP ${res.status}: ${await res.text()}`)
+
+  const data = await res.json()
+  if (!data.success) throw new Error(`TopstepX auth failed (${data.errorCode}): ${data.errorMessage}`)
+
+  _tokenCache = { token: data.token, expiresAt: Date.now() + 23.5 * 60 * 60 * 1000 }
+  console.log('[TopstepX] Token refreshed')
+  return data.token
 }
 
-export interface AccountStatus {
-  accountId: string
+// ─── AUTHENTICATED POST ───────────────────────────────────────────────────────
+async function apiPost<T = any>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+  const token = await getTopstepXToken()
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (res.status === 401) { _tokenCache = null; return apiPost(endpoint, body) }
+  if (!res.ok) throw new Error(`TopstepX ${endpoint} HTTP ${res.status}`)
+  const data = await res.json()
+  if (data.success === false) throw new Error(`TopstepX ${endpoint} error (${data.errorCode}): ${data.errorMessage}`)
+  return data as T
+}
+
+// ─── ACCOUNT ──────────────────────────────────────────────────────────────────
+export interface TSXAccount {
+  id: number
+  name: string
   balance: number
-  equity: number
-  dailyPnl: number
-  trailingDrawdown: number
-  maxDailyLoss: number
-  profitTarget: number
-  status: 'active' | 'breach' | 'funded'
+  canTrade: boolean
+  isVisible: boolean
 }
 
-export interface DailyPnL {
-  date: string
-  realizedPnl: number
-  unrealizedPnl: number
-  totalPnl: number
+export async function getAccounts(): Promise<TSXAccount[]> {
+  const data = await apiPost<{ accounts: TSXAccount[] }>('/api/Account/search', { onlyActiveAccounts: true })
+  return data.accounts ?? []
 }
 
-export interface Position {
-  symbol: string
-  direction: 'LONG' | 'SHORT'
-  contracts: number
-  entryPrice: number
+export async function getPrimaryAccount(): Promise<TSXAccount | null> {
+  const accounts = await getAccounts()
+  if (!accounts.length) return null
+  const configuredId = process.env.TOPSTEPX_ACCOUNT_ID
+  if (configuredId) {
+    const match = accounts.find((a) => String(a.id) === configuredId)
+    if (match) return match
+  }
+  return accounts[0]
+}
+
+// ─── POSITIONS ────────────────────────────────────────────────────────────────
+export interface TSXPosition {
+  id: number
+  accountId: number
+  contractId: string
+  creationTimestamp: string
+  type: number  // 1=LONG, 2=SHORT
+  size: number
+  averagePrice: number
+}
+
+export async function getOpenPositions(accountId: number): Promise<TSXPosition[]> {
+  const data = await apiPost<{ positions: TSXPosition[] }>('/api/Position/searchOpen', { accountId })
+  return data.positions ?? []
+}
+
+// ─── CONTRACTS ────────────────────────────────────────────────────────────────
+export interface TSXContract {
+  id: string
+  name: string
+  description?: string
+  tickSize?: number
+  tickValue?: number
+}
+
+export async function searchContracts(text: string, live = true): Promise<TSXContract[]> {
+  try {
+    const data = await apiPost<{ contracts: TSXContract[] }>('/api/Contract/search', { searchText: text, live })
+    return data.contracts ?? []
+  } catch {
+    return []
+  }
+}
+
+// Build front-month contract ID using CME quarterly codes: Mar=H, Jun=M, Sep=U, Dec=Z
+function buildFrontMonthContractId(symbol: string): string {
+  const now = new Date()
+  const month = now.getUTCMonth() + 1
+  const yearFull = now.getUTCFullYear()
+  const cmeMonths: Record<number, string> = { 3: 'H', 6: 'M', 9: 'U', 12: 'Z' }
+  const quarterlyMonths = [3, 6, 9, 12]
+  let frontMonth = quarterlyMonths.find((m) => m >= month)
+  let frontYear = yearFull
+  if (!frontMonth) { frontMonth = 3; frontYear = yearFull + 1 }
+  const monthCode = cmeMonths[frontMonth]
+  return `CON.F.US.${symbol}.${monthCode}${String(frontYear).slice(2)}`
+}
+
+export async function getActiveNQContractId(): Promise<string> {
+  if (process.env.TOPSTEPX_NQ_CONTRACT_ID) return process.env.TOPSTEPX_NQ_CONTRACT_ID
+  const contracts = await searchContracts('NQ', true)
+  const nq = contracts.filter((c) => c.id?.includes('CON.F.US.NQ') && !c.id?.includes('MNQ'))
+  return nq[0]?.id ?? buildFrontMonthContractId('NQ')
+}
+
+export async function getActiveMNQContractId(): Promise<string> {
+  if (process.env.TOPSTEPX_MNQ_CONTRACT_ID) return process.env.TOPSTEPX_MNQ_CONTRACT_ID
+  const contracts = await searchContracts('MNQ', true)
+  const mnq = contracts.filter((c) => c.id?.includes('CON.F.US.MNQ'))
+  return mnq[0]?.id ?? buildFrontMonthContractId('MNQ')
+}
+
+// ─── HISTORICAL BARS ──────────────────────────────────────────────────────────
+export interface TSXBar { t: string; o: number; h: number; l: number; c: number; v: number }
+
+export async function getMinuteBars(
+  contractId: string, startTime: Date, endTime: Date, live = true, limit = 100
+): Promise<TSXBar[]> {
+  const data = await apiPost<{ bars: TSXBar[] }>('/api/History/retrieveBars', {
+    contractId, live,
+    startTime: startTime.toISOString(),
+    endTime: endTime.toISOString(),
+    unit: 2, unitNumber: 1, limit,
+    includePartialBar: false,
+  })
+  return (data.bars ?? []).sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime())
+}
+
+// ─── OPENING RANGE CALCULATOR ─────────────────────────────────────────────────
+export interface ORBResult {
+  orHigh: number
+  orLow: number
+  orSize: number
+  barsUsed: number
+  startTime: string
+  endTime: string
   currentPrice: number
-  unrealizedPnl: number
+  breakoutLong: boolean
+  breakoutShort: boolean
+  breakoutDirection: 'LONG' | 'SHORT' | 'NONE'
+  contractId: string
 }
 
-export interface Order {
-  orderId: string
-  symbol: string
-  direction: 'BUY' | 'SELL'
-  contracts: number
-  type: string
-  status: string
-  price?: number
-}
+export async function calculateOpeningRange(symbol: 'NQ' | 'MNQ' = 'NQ', live = true): Promise<ORBResult> {
+  const contractId = symbol === 'NQ' ? await getActiveNQContractId() : await getActiveMNQContractId()
 
-export interface Execution {
-  executionId: string
-  orderId: string
-  symbol: string
-  direction: 'BUY' | 'SELL'
-  contracts: number
-  price: number
-  timestamp: string
-}
+  // Get ET offset dynamically
+  const now = new Date()
+  const etNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const etOffsetHours = Math.round((now.getTime() - etNow.getTime()) / (3600 * 1000))
 
-// ─── TOPSTEPX PROVIDER IMPLEMENTATION ────────────────────────────────────────
-// Placeholder — implement when official API docs are provided
+  // Build 9:30 AM ET in UTC
+  const orStart = new Date(now)
+  orStart.setUTCHours(9 + etOffsetHours, 30, 0, 0)
+  // If today's 9:30 hasn't happened yet UTC-wise, go to yesterday
+  if (orStart > now) orStart.setUTCDate(orStart.getUTCDate() - 1)
 
-export class TopstepXProvider implements BrokerProvider {
-  private apiKey: string
-  private accountId: string
-  private baseUrl: string
-  private enabled: boolean
+  const orEnd = new Date(orStart.getTime() + 30 * 60 * 1000) // +30 min = 10:00 AM ET
 
-  constructor() {
-    this.apiKey = process.env.TOPSTEPX_API_KEY ?? ''
-    this.accountId = process.env.TOPSTEPX_ACCOUNT_ID ?? ''
-    this.baseUrl = process.env.TOPSTEPX_BASE_URL ?? 'https://api.topstepx.com'
-    // Only activate if explicitly enabled AND credentials are present
-    this.enabled = Boolean(
-      this.apiKey &&
-      this.accountId &&
-      process.env.ENABLE_ORDER_EXECUTION !== 'true' // always read-only
-    )
-  }
+  const bars = await getMinuteBars(contractId, orStart, orEnd, live, 35)
+  if (!bars.length) throw new Error(`No bars for ${contractId} in OR window`)
 
-  private notReady(): never {
-    throw new Error(
-      'TopstepX API not configured. Add TOPSTEPX_API_KEY and TOPSTEPX_ACCOUNT_ID to your .env file.'
-    )
-  }
+  const orHigh = Math.max(...bars.map((b) => b.h))
+  const orLow  = Math.min(...bars.map((b) => b.l))
+  const orSize = orHigh - orLow
+  const lastBar = bars[bars.length - 1]
+  const currentPrice = lastBar.c
 
-  async getAccountStatus(): Promise<AccountStatus> {
-    if (!this.enabled) this.notReady()
-    // TODO: Implement when API docs are provided
-    // GET ${this.baseUrl}/v1/account/${this.accountId}
-    throw new Error('TopstepX API: getAccountStatus not yet implemented')
-  }
+  const BREAKOUT_BUFFER = 3
+  const breakoutLong  = currentPrice > orHigh + BREAKOUT_BUFFER
+  const breakoutShort = currentPrice < orLow  - BREAKOUT_BUFFER
 
-  async getDailyPnL(): Promise<DailyPnL> {
-    if (!this.enabled) this.notReady()
-    // TODO: Implement when API docs are provided
-    // GET ${this.baseUrl}/v1/account/${this.accountId}/daily-pnl
-    throw new Error('TopstepX API: getDailyPnL not yet implemented')
-  }
-
-  async getOpenPositions(): Promise<Position[]> {
-    if (!this.enabled) this.notReady()
-    // TODO: Implement when API docs are provided
-    // GET ${this.baseUrl}/v1/account/${this.accountId}/positions
-    throw new Error('TopstepX API: getOpenPositions not yet implemented')
-  }
-
-  async getOrders(): Promise<Order[]> {
-    if (!this.enabled) this.notReady()
-    // TODO: Implement when API docs are provided
-    // GET ${this.baseUrl}/v1/account/${this.accountId}/orders
-    throw new Error('TopstepX API: getOrders not yet implemented')
-  }
-
-  async getExecutions(): Promise<Execution[]> {
-    if (!this.enabled) this.notReady()
-    // TODO: Implement when API docs are provided
-    // GET ${this.baseUrl}/v1/account/${this.accountId}/executions
-    throw new Error('TopstepX API: getExecutions not yet implemented')
-  }
-
-  // ─── ORDER EXECUTION — PERMANENTLY DISABLED ──────────────────────────────
-  // These methods intentionally throw errors and will never be implemented
-
-  placeOrder(): never {
-    throw new Error('⛔ ORDER EXECUTION IS DISABLED. This app is read-only.')
-  }
-
-  cancelOrder(): never {
-    throw new Error('⛔ ORDER EXECUTION IS DISABLED. This app is read-only.')
-  }
-
-  modifyOrder(): never {
-    throw new Error('⛔ ORDER EXECUTION IS DISABLED. This app is read-only.')
+  return {
+    orHigh, orLow, orSize: parseFloat(orSize.toFixed(2)),
+    barsUsed: bars.length,
+    startTime: bars[0].t, endTime: lastBar.t,
+    currentPrice, breakoutLong, breakoutShort,
+    breakoutDirection: breakoutLong ? 'LONG' : breakoutShort ? 'SHORT' : 'NONE',
+    contractId,
   }
 }
 
-export const topstepx = new TopstepXProvider()
+// ─── CONNECTION TEST ──────────────────────────────────────────────────────────
+export async function testConnection(): Promise<{ connected: boolean; account: TSXAccount | null; error?: string }> {
+  try {
+    const account = await getPrimaryAccount()
+    return { connected: true, account }
+  } catch (err) {
+    return { connected: false, account: null, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ─── ORDER EXECUTION — PERMANENTLY DISABLED ──────────────────────────────────
+export function placeOrder(): never  { throw new Error('⛔ ORDER EXECUTION IS PERMANENTLY DISABLED.') }
+export function cancelOrder(): never { throw new Error('⛔ ORDER EXECUTION IS PERMANENTLY DISABLED.') }
+export function modifyOrder(): never { throw new Error('⛔ ORDER EXECUTION IS PERMANENTLY DISABLED.') }

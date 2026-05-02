@@ -27,6 +27,7 @@ model Settings {
   tradingViewWebhookSecret String? @default("")
   // TopstepX scaffold — disabled until API docs provided
   topstepxApiKey      String? @default("")
+  topstepxUsername    String? @default("")
   topstepxAccountId   String? @default("")
   topstepxBaseUrl     String? @default("https://api.topstepx.com")
   enableOrderExecution Boolean @default(false)

@@ -20,6 +20,7 @@ async function main() {
       mnqEnabled: true,
       nqEnabled: false,
       enableOrderExecution: false,
+      topstepxUsername: "",
     },
   })
 
