@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import MorningBriefing from '@/components/MorningBriefing'
+import MacroSentiment from '@/components/MacroSentiment'
 
 interface ScoreFactor { label: string; points: number; met: boolean }
 
@@ -28,13 +29,15 @@ export default function SessionPage() {
   }
 
   // Auto-populate from Morning Briefing
-  function handleAutoPopulate(data: { vixLevel: string; vixExtreme: boolean; qqpAligned: boolean; hasHighImpactNews: boolean }) {
+  function handleAutoPopulate(data: { vixLevel: string; vixExtreme: boolean; qqpAligned: boolean; hasHighImpactNews: boolean; us10yAgainst?: boolean; dxyAgainst?: boolean }) {
     setForm((f) => ({
       ...f,
       vixLevel: data.vixLevel,
       vixExtreme: data.vixExtreme,
       qqpAligned: data.qqpAligned,
       hasHighImpactNews: data.hasHighImpactNews,
+      us10yAgainst: data.us10yAgainst ?? f.us10yAgainst,
+      dxyAgainst: data.dxyAgainst ?? f.dxyAgainst,
     }))
   }
 
@@ -92,6 +95,7 @@ export default function SessionPage() {
 
       {/* Morning Briefing with auto-populate */}
       <MorningBriefing onAutoPopulate={handleAutoPopulate} />
+      <MacroSentiment onMacroLoad={(d) => setForm(f => ({ ...f, us10yAgainst: d.us10yAgainst, dxyAgainst: d.dxyAgainst }))} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,380px)', gap: '20px', alignItems: 'start' }}>
         {/* Left: Form */}
