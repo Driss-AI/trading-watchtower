@@ -67,7 +67,7 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Session Timer */}
+      {/* Session Countdown Timer */}
       <SessionTimer />
 
       {/* Morning Briefing Widget */}
