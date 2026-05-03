@@ -253,6 +253,7 @@ export async function fetchMarketBriefing(): Promise<MarketBriefing> {
   ])
 
   const hasHighImpactNewsToday = news.some((e) => e.impact === 'high')
+  const marketStatus = getMarketStatus()
 
   return {
     vix, qqq, nq, news,
