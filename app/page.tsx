@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import MorningBriefing from '@/components/MorningBriefing'
+import SessionTimer from '@/components/SessionTimer'
 import MacroSentiment from '@/components/MacroSentiment'
 import EconomicCalendar from '@/components/EconomicCalendar'
 
@@ -65,6 +66,9 @@ export default function Dashboard() {
           + New Session
         </Link>
       </div>
+
+      {/* Session Timer */}
+      <SessionTimer />
 
       {/* Morning Briefing Widget */}
       <MorningBriefing />

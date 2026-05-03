@@ -1,4 +1,5 @@
 'use client'
+import { SessionTimerCompact } from './SessionTimer'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -93,48 +94,10 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Time */}
-        <TimeDisplay />
+        {/* Session Timer */}
+        <SessionTimerCompact />
       </div>
     </nav>
   )
 }
 
-function TimeDisplay() {
-  return (
-    <div style={{
-      fontFamily: 'IBM Plex Mono, monospace',
-      fontSize: '11px',
-      color: '#3a5280',
-      padding: '0 8px',
-      flexShrink: 0,
-    }}>
-      <LiveClock />
-    </div>
-  )
-}
-
-function LiveClock() {
-  'use client'
-  const { useState, useEffect } = require('react')
-  const [time, setTime] = useState('')
-
-  useEffect(() => {
-    const update = () => {
-      const now = new Date()
-      const nyTime = now.toLocaleTimeString('en-US', {
-        timeZone: 'America/New_York',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      })
-      setTime(`NY ${nyTime}`)
-    }
-    update()
-    const timer = setInterval(update, 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  return <span>{time}</span>
-}
