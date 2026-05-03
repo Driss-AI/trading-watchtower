@@ -179,14 +179,31 @@ export async function fetchEconomicCalendar(todayOnly = false): Promise<NewsEven
 
 export async function fetchWeekCalendar(): Promise<CalendarDay[]> {
   try {
-    const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
+    // On weekends, this week's events are mostly past — fetch next week instead
+    const now = new Date()
+    const dayET = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay()
+    const isWeekend = dayET === 0 || dayET === 6
+    const calUrl = isWeekend
+      ? 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'
+      : 'https://nfs.faireconomy.media/ff_calendar_thisweek.json'
+
+    const res = await fetch(calUrl, {
       headers: { 'User-Agent': 'TradingWatchtower/2.0' },
       next: { revalidate: 3600 },
     })
 
-    if (!res.ok) throw new Error(`FF calendar HTTP ${res.status}`)
-
-    const events: any[] = await res.json()
+    // Fallback to thisweek if nextweek fails
+    let events: any[] = []
+    if (!res.ok) {
+      const fallback = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
+        headers: { 'User-Agent': 'TradingWatchtower/2.0' },
+        next: { revalidate: 3600 },
+      })
+      if (fallback.ok) events = await fallback.json()
+      else throw new Error(`FF calendar HTTP ${res.status}`)
+    } else {
+      events = await res.json()
+    }
 
     const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
     const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
