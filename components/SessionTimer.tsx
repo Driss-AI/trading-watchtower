@@ -2,308 +2,291 @@
 import { useEffect, useState } from 'react'
 
 interface TimerState {
-  phase: 'pre_session' | 'orb_window' | 'post_orb' | 'closed' | 'weekend'
+  phase: 'weekend' | 'pre_session' | 'approaching' | 'orb_window' | 'post_orb' | 'closed'
   label: string
   sublabel: string
-  countdownMs: number   // ms until next phase change
   hours: number
   minutes: number
   seconds: number
   color: string
-  urgency: 'calm' | 'approaching' | 'live' | 'over'
-  dubaiTime: string
+  bgColor: string
+  borderColor: string
   nyTime: string
+  dubaiTime: string
   dayLabel: string
+  progressPct: number  // 0-100 progress through current phase
 }
 
-function computeTimerState(): TimerState {
+function computeState(): TimerState {
   const now = new Date()
+  const nyNow  = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const dubNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dubai' }))
 
-  // Current time in ET
-  const nyNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
-  const dubaiNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dubai' }))
+  const nyTime  = nyNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const dubaiTime = dubNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
-  const nyTime = nyNow.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
-  const dubaiTime = dubaiNow.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  const day = nyNow.getDay()
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+  const totalSecs = nyNow.getHours() * 3600 + nyNow.getMinutes() * 60 + nyNow.getSeconds()
 
-  const day = nyNow.getDay()   // 0=Sun, 6=Sat
-  const h = nyNow.getHours()
-  const m = nyNow.getMinutes()
-  const s = nyNow.getSeconds()
-  const totalSecsNow = h * 3600 + m * 60 + s
-
-  // Key session times in ET seconds
-  const SESSION_OPEN   = 9 * 3600 + 30 * 60   // 9:30 AM
-  const ORB_END        = 10 * 3600             // 10:00 AM (OR established)
-  const SESSION_CLOSE  = 10 * 3600 + 30 * 60  // 10:30 AM (end of trading window)
-  const PREP_START     = 9 * 3600              // 9:00 AM (30 min prep warning)
+  const OPEN   = 9 * 3600 + 30 * 60   // 9:30
+  const MID    = 10 * 3600             // 10:00
+  const CLOSE  = 10 * 3600 + 30 * 60  // 10:30
+  const WARN   = 9 * 3600             // 9:00 (30-min warning)
 
   const isWeekday = day >= 1 && day <= 5
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  const dayLabel = dayNames[day]
 
-  // Weekend
+  const pad = (n: number) => ({ h: Math.floor(n / 3600), m: Math.floor((n % 3600) / 60), s: n % 60 })
+
+  // ── WEEKEND ──────────────────────────────────────────────────────────────
   if (!isWeekday) {
-    // Next Monday 9:30 AM ET
     const daysUntilMon = day === 6 ? 2 : 1
-    const nextOpen = new Date(nyNow)
-    nextOpen.setDate(nyNow.getDate() + daysUntilMon)
-    nextOpen.setHours(9, 30, 0, 0)
-    const msUntil = nextOpen.getTime() - now.getTime()
-    const totalSecs = Math.floor(msUntil / 1000)
-    const hrs = Math.floor(totalSecs / 3600)
-    const mins = Math.floor((totalSecs % 3600) / 60)
-    const secs = totalSecs % 60
+    const nextMon = new Date(nyNow)
+    nextMon.setDate(nyNow.getDate() + daysUntilMon)
+    nextMon.setHours(9, 30, 0, 0)
+    const secs = Math.max(0, Math.floor((nextMon.getTime() - now.getTime()) / 1000))
+    const t = pad(secs)
     return {
       phase: 'weekend',
-      label: 'MARKET CLOSED — WEEKEND',
-      sublabel: `Next session: Monday 9:30 AM ET · 6:30 PM Dubai`,
-      countdownMs: msUntil,
-      hours: hrs, minutes: mins, seconds: secs,
-      color: 'var(--text-dim)',
-      urgency: 'over',
-      nyTime, dubaiTime, dayLabel,
+      label: 'WEEKEND', sublabel: 'Next session: Monday 9:30 AM ET · 6:30 PM Dubai',
+      hours: t.h, minutes: t.m, seconds: t.s,
+      color: 'var(--text-secondary)', bgColor: 'var(--surface)', borderColor: 'var(--border)',
+      nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: 0,
     }
   }
 
-  // After session close — show next day's countdown
-  if (totalSecsNow >= SESSION_CLOSE) {
-    const isFriday = day === 5
-    const daysUntil = isFriday ? 3 : 1
-    const nextOpen = new Date(nyNow)
-    nextOpen.setDate(nyNow.getDate() + daysUntil)
-    nextOpen.setHours(9, 30, 0, 0)
-    const msUntil = nextOpen.getTime() - now.getTime()
-    const totalSecs = Math.floor(msUntil / 1000)
-    const hrs = Math.floor(totalSecs / 3600)
-    const mins = Math.floor((totalSecs % 3600) / 60)
-    const secs = totalSecs % 60
-    const nextDayName = isFriday ? 'Monday' : dayNames[day + 1]
+  // ── SESSION CLOSED (after 10:30 AM) ──────────────────────────────────────
+  if (totalSecs >= CLOSE) {
+    const isFri = day === 5
+    const daysAhead = isFri ? 3 : 1
+    const next = new Date(nyNow)
+    next.setDate(nyNow.getDate() + daysAhead)
+    next.setHours(9, 30, 0, 0)
+    const secs = Math.max(0, Math.floor((next.getTime() - now.getTime()) / 1000))
+    const t = pad(secs)
+    const nextDay = isFri ? 'Monday' : dayNames[day + 1]
     return {
       phase: 'closed',
-      label: `SESSION CLOSED`,
-      sublabel: `Next: ${nextDayName} 9:30 AM ET · 6:30 PM Dubai`,
-      countdownMs: msUntil,
-      hours: hrs, minutes: mins, seconds: secs,
-      color: 'var(--text-dim)',
-      urgency: 'over',
-      nyTime, dubaiTime, dayLabel,
+      label: 'SESSION CLOSED', sublabel: `Next: ${nextDay} 9:30 AM ET · 6:30 PM Dubai`,
+      hours: t.h, minutes: t.m, seconds: t.s,
+      color: 'var(--text-dim)', bgColor: 'var(--surface)', borderColor: 'var(--border)',
+      nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: 100,
     }
   }
 
-  // ORB window live: 9:30–10:00 AM ET
-  if (totalSecsNow >= SESSION_OPEN && totalSecsNow < ORB_END) {
-    const secsLeft = ORB_END - totalSecsNow
-    const mins = Math.floor(secsLeft / 60)
-    const secs = secsLeft % 60
+  // ── OR BUILDING (9:30–10:00) ──────────────────────────────────────────────
+  if (totalSecs >= OPEN && totalSecs < MID) {
+    const secs = MID - totalSecs
+    const t = pad(secs)
+    const elapsed = totalSecs - OPEN
+    const pct = (elapsed / (MID - OPEN)) * 100
     return {
       phase: 'orb_window',
-      label: '🔴 LIVE — OR BUILDING',
-      sublabel: 'Opening Range window closes at 10:00 AM ET · 7:00 PM Dubai',
-      countdownMs: secsLeft * 1000,
-      hours: 0, minutes: mins, seconds: secs,
-      color: 'var(--red)',
-      urgency: 'live',
-      nyTime, dubaiTime, dayLabel,
+      label: '🔴 LIVE — OPENING RANGE BUILDING', sublabel: 'OR closes at 10:00 AM ET (7:00 PM Dubai) — wait for the range to form',
+      hours: 0, minutes: t.m, seconds: t.s,
+      color: 'var(--red)', bgColor: 'var(--red-bg)', borderColor: 'var(--red-border)',
+      nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: pct,
     }
   }
 
-  // Post-ORB trading window: 10:00–10:30 AM ET
-  if (totalSecsNow >= ORB_END && totalSecsNow < SESSION_CLOSE) {
-    const secsLeft = SESSION_CLOSE - totalSecsNow
-    const mins = Math.floor(secsLeft / 60)
-    const secs = secsLeft % 60
+  // ── TRADE WINDOW (10:00–10:30) ────────────────────────────────────────────
+  if (totalSecs >= MID && totalSecs < CLOSE) {
+    const secs = CLOSE - totalSecs
+    const t = pad(secs)
+    const elapsed = totalSecs - MID
+    const pct = (elapsed / (CLOSE - MID)) * 100
     return {
       phase: 'post_orb',
-      label: '🟢 LIVE — OR COMPLETE',
-      sublabel: 'Trade window closes at 10:30 AM ET · 7:30 PM Dubai',
-      countdownMs: secsLeft * 1000,
-      hours: 0, minutes: mins, seconds: secs,
-      color: 'var(--green)',
-      urgency: 'live',
-      nyTime, dubaiTime, dayLabel,
+      label: '🟢 LIVE — OR COMPLETE · TRADE WINDOW OPEN', sublabel: 'Session closes at 10:30 AM ET (7:30 PM Dubai)',
+      hours: 0, minutes: t.m, seconds: t.s,
+      color: 'var(--green)', bgColor: 'var(--green-bg)', borderColor: 'var(--green-border)',
+      nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: pct,
     }
   }
 
-  // Pre-session: before 9:30 AM ET
-  const secsUntilOpen = SESSION_OPEN - totalSecsNow
-  const msUntilOpen = secsUntilOpen * 1000
-  const hrs = Math.floor(secsUntilOpen / 3600)
-  const mins = Math.floor((secsUntilOpen % 3600) / 60)
-  const secs = secsUntilOpen % 60
+  // ── APPROACHING (9:00–9:30) ───────────────────────────────────────────────
+  if (totalSecs >= WARN && totalSecs < OPEN) {
+    const secs = OPEN - totalSecs
+    const t = pad(secs)
+    const elapsed = totalSecs - WARN
+    const pct = (elapsed / (OPEN - WARN)) * 100
+    return {
+      phase: 'approaching',
+      label: '⚡ SESSION STARTING SOON', sublabel: 'NY Open 9:30 AM ET · Dubai 6:30 PM · Prepare your setup now',
+      hours: 0, minutes: t.m, seconds: t.s,
+      color: 'var(--yellow)', bgColor: 'var(--yellow-bg)', borderColor: 'var(--yellow-border)',
+      nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: pct,
+    }
+  }
 
-  // < 30 min = approaching
-  const urgency: TimerState['urgency'] = secsUntilOpen < 30 * 60 ? 'approaching' : 'calm'
-  const color = urgency === 'approaching' ? 'var(--yellow)' : 'var(--blue)'
-
+  // ── PRE-SESSION (before 9:00 AM) ─────────────────────────────────────────
+  const secs = OPEN - totalSecs
+  const t = pad(secs)
   return {
     phase: 'pre_session',
-    label: urgency === 'approaching' ? '⚡ SESSION STARTING SOON' : 'NEXT SESSION',
-    sublabel: `NY Open 9:30 AM ET · Dubai 6:30 PM`,
-    countdownMs: msUntilOpen,
-    hours: hrs, minutes: mins, seconds: secs,
-    color,
-    urgency,
-    nyTime, dubaiTime, dayLabel,
+    label: 'NEXT SESSION', sublabel: 'NY Open 9:30 AM ET · Dubai 6:30 PM · 7:30 PM close',
+    hours: t.h, minutes: t.m, seconds: t.s,
+    color: 'var(--blue)', bgColor: 'var(--surface)', borderColor: 'var(--border)',
+    nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: 0,
   }
 }
 
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
 export default function SessionTimer() {
-  const [state, setState] = useState<TimerState | null>(null)
+  const [s, setS] = useState<TimerState | null>(null)
 
   useEffect(() => {
-    // Initial
-    setState(computeTimerState())
-    // Tick every second
-    const interval = setInterval(() => {
-      setState(computeTimerState())
-    }, 1000)
-    return () => clearInterval(interval)
+    setS(computeState())
+    const id = setInterval(() => setS(computeState()), 1000)
+    return () => clearInterval(id)
   }, [])
 
-  if (!state) return null
+  if (!s) return null
 
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const isLive = state.urgency === 'live'
-  const isApproaching = state.urgency === 'approaching'
-  const isOver = state.urgency === 'over'
-
-  const bgColor = isLive
-    ? state.phase === 'orb_window' ? 'var(--red-bg)' : 'var(--green-bg)'
-    : isApproaching ? 'var(--yellow-bg)'
-    : 'var(--surface)'
-
-  const borderColor = isLive
-    ? state.phase === 'orb_window' ? 'var(--red-border)' : 'var(--green-border)'
-    : isApproaching ? 'var(--yellow-border)'
-    : 'var(--border)'
+  const isLive = s.phase === 'orb_window' || s.phase === 'post_orb'
+  const isWeekendOrClosed = s.phase === 'weekend' || s.phase === 'closed'
+  const countdown = s.hours > 0
+    ? `${pad2(s.hours)}:${pad2(s.minutes)}:${pad2(s.seconds)}`
+    : `${pad2(s.minutes)}:${pad2(s.seconds)}`
 
   return (
     <div style={{
-      background: bgColor,
-      border: `1px solid ${borderColor}`,
+      background: s.bgColor,
+      border: `1px solid ${s.borderColor}`,
       borderRadius: '10px',
-      padding: '16px 24px',
+      padding: '16px 20px',
       marginBottom: '16px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '20px',
-      boxShadow: isLive ? `0 0 20px ${state.color}25` : 'none',
+      boxShadow: isLive ? `0 0 24px ${s.color}20` : 'none',
     }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
 
-      {/* Left: Label + sublabel */}
-      <div style={{ minWidth: 0 }}>
-        <div style={{
-          fontFamily: 'IBM Plex Mono, monospace',
-          fontSize: '10px',
-          fontWeight: '700',
-          letterSpacing: '0.12em',
-          color: state.color,
-          marginBottom: '4px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}>
-          {isLive && (
+        {/* Left: Status + sublabel */}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            {isLive && (
+              <span style={{
+                width: '8px', height: '8px', borderRadius: '50%', background: s.color, flexShrink: 0,
+                animation: 'timerPulse 1.2s ease-in-out infinite',
+              }} />
+            )}
             <span style={{
-              width: '8px', height: '8px', borderRadius: '50%',
-              background: state.color,
-              display: 'inline-block',
-              animation: 'pulse 1.2s ease-in-out infinite',
+              fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700',
+              letterSpacing: '0.1em', color: s.color,
+            }}>
+              {s.label}
+            </span>
+            <span style={{
+              fontSize: '10px', padding: '1px 7px', borderRadius: '4px',
+              background: 'var(--surface)', border: `1px solid ${s.borderColor}`,
+              color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace',
+            }}>
+              {s.dayLabel.toUpperCase()}
+            </span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono, monospace' }}>
+            {s.sublabel}
+          </div>
+        </div>
+
+        {/* Center: Countdown */}
+        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+          <div style={{
+            fontFamily: 'IBM Plex Mono, monospace',
+            fontSize: isLive ? '38px' : '30px',
+            fontWeight: '700',
+            color: s.color,
+            lineHeight: 1,
+            letterSpacing: '0.04em',
+            textShadow: isLive ? `0 0 20px ${s.color}70` : 'none',
+          }}>
+            {countdown}
+          </div>
+          <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginTop: '3px', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em' }}>
+            {s.phase === 'orb_window' ? 'OR CLOSES IN'
+              : s.phase === 'post_orb' ? 'SESSION CLOSES IN'
+              : s.phase === 'approaching' ? 'UNTIL OPEN'
+              : 'UNTIL NEXT SESSION'}
+          </div>
+        </div>
+
+        {/* Right: Dual clock */}
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ marginBottom: '6px' }}>
+            <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '1px' }}>
+              DUBAI (YOUR TIME)
+            </div>
+            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
+              {s.dubaiTime}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '1px' }}>
+              ET (NEW YORK)
+            </div>
+            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '14px', fontWeight: '400', color: 'var(--text-secondary)' }}>
+              {s.nyTime}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Session Timeline Bar */}
+      <div style={{ marginTop: '14px' }}>
+        {/* Labels */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
+          <span style={{ color: s.phase === 'approaching' || isLive ? s.color : 'var(--text-dim)' }}>9:30 AM ET · 6:30 PM DXB</span>
+          <span style={{ color: s.phase === 'post_orb' ? s.color : 'var(--text-dim)' }}>10:00 AM · 7:00 PM</span>
+          <span>10:30 AM · 7:30 PM</span>
+        </div>
+
+        {/* Track */}
+        <div style={{ position: 'relative', height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+          {/* OR zone (9:30-10:00) */}
+          <div style={{
+            position: 'absolute', left: 0, top: 0, bottom: 0, width: '50%',
+            background: s.phase === 'orb_window' ? `var(--red)` : 'var(--border-bright)',
+            opacity: s.phase === 'orb_window' ? 1 : 0.4,
+            transition: 'background 0.3s',
+          }} />
+          {/* Trade zone (10:00-10:30) */}
+          <div style={{
+            position: 'absolute', left: '50%', top: 0, bottom: 0, width: '50%',
+            background: s.phase === 'post_orb' ? 'var(--green)' : 'var(--border-bright)',
+            opacity: s.phase === 'post_orb' ? 1 : 0.4,
+            transition: 'background 0.3s',
+          }} />
+          {/* Progress indicator (for live phases) */}
+          {isLive && (
+            <div style={{
+              position: 'absolute',
+              left: s.phase === 'orb_window'
+                ? `${(s.progressPct / 100) * 50}%`
+                : `${50 + (s.progressPct / 100) * 50}%`,
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '10px', height: '10px', borderRadius: '50%',
+              background: s.color,
+              boxShadow: `0 0 8px ${s.color}`,
+              transition: 'left 1s linear',
             }} />
           )}
-          {state.label}
+          {/* 10:00 divider */}
+          <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', background: 'var(--card)', transform: 'translateX(-50%)' }} />
         </div>
-        <div style={{
-          fontSize: '11px',
-          color: 'var(--text-secondary)',
-          fontFamily: 'IBM Plex Mono, monospace',
-        }}>
-          {state.sublabel}
-        </div>
-      </div>
 
-      {/* Center: Countdown clock */}
-      <div style={{ textAlign: 'center', flexShrink: 0 }}>
-        {!isOver && (
-          <>
-            <div style={{
-              fontFamily: 'IBM Plex Mono, monospace',
-              fontSize: isLive ? '36px' : '32px',
-              fontWeight: '700',
-              color: state.color,
-              lineHeight: 1,
-              letterSpacing: '0.05em',
-              textShadow: isLive ? `0 0 20px ${state.color}80` : 'none',
-            }}>
-              {state.hours > 0
-                ? `${pad(state.hours)}:${pad(state.minutes)}:${pad(state.seconds)}`
-                : `${pad(state.minutes)}:${pad(state.seconds)}`
-              }
-            </div>
-            <div style={{
-              fontSize: '10px',
-              color: 'var(--text-dim)',
-              marginTop: '3px',
-              fontFamily: 'IBM Plex Mono, monospace',
-              letterSpacing: '0.06em',
-            }}>
-              {isLive
-                ? state.phase === 'orb_window' ? 'OR WINDOW CLOSES IN' : 'TRADE WINDOW CLOSES IN'
-                : 'UNTIL NY OPEN'
-              }
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Right: Dual clock (Dubai + NY) */}
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <ClockDisplay label="DUBAI" time={state.dubaiTime} primary />
-        <ClockDisplay label="NY" time={state.nyTime} />
-        <div style={{
-          fontSize: '10px',
-          color: 'var(--text-dim)',
-          marginTop: '4px',
-          fontFamily: 'IBM Plex Mono, monospace',
-        }}>
-          {state.dayLabel}
+        {/* Zone labels */}
+        <div style={{ display: 'flex', marginTop: '4px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
+          <div style={{ flex: 1, textAlign: 'center', color: s.phase === 'orb_window' ? 'var(--red)' : 'var(--text-dim)' }}>
+            ← OR BUILDING (30 min) →
+          </div>
+          <div style={{ flex: 1, textAlign: 'center', color: s.phase === 'post_orb' ? 'var(--green)' : 'var(--text-dim)' }}>
+            ← TRADE WINDOW (30 min) →
+          </div>
         </div>
       </div>
 
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.4; transform: scale(0.8); }
-        }
-      `}</style>
-    </div>
-  )
-}
-
-function ClockDisplay({ label, time, primary }: { label: string; time: string; primary?: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', justifyContent: 'flex-end', marginBottom: '2px' }}>
-      <span style={{
-        fontSize: '9px',
-        color: 'var(--text-dim)',
-        fontFamily: 'IBM Plex Mono, monospace',
-        fontWeight: '600',
-        letterSpacing: '0.08em',
-        width: '38px',
-        textAlign: 'right',
-      }}>
-        {label}
-      </span>
-      <span style={{
-        fontFamily: 'IBM Plex Mono, monospace',
-        fontSize: primary ? '16px' : '13px',
-        fontWeight: primary ? '700' : '400',
-        color: primary ? 'var(--text-primary)' : 'var(--text-secondary)',
-      }}>
-        {time}
-      </span>
+      <style>{`@keyframes timerPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.75)}}`}</style>
     </div>
   )
 }
