@@ -150,14 +150,7 @@ export async function fetchNQ(): Promise<NQData> {
 
 // ─── ECONOMIC CALENDAR ───────────────────────────────────────────────────────
 
-export interface CalendarDay {
-  date: string        // "YYYY-MM-DD"
-  dateLabel: string   // "Monday May 5" 
-  isToday: boolean
-  isTomorrow: boolean
-  events: NewsEvent[]
-  hasHighImpact: boolean
-}
+// CalendarDay is defined in and re-exported from calendar-schedule.ts
 
 export async function fetchEconomicCalendar(todayOnly = false): Promise<NewsEvent[]> {
   const allDays = await fetchWeekCalendar()
@@ -178,32 +171,22 @@ export async function fetchEconomicCalendar(todayOnly = false): Promise<NewsEven
 }
 
 export async function fetchWeekCalendar(): Promise<CalendarDay[]> {
-  try {
-    // On weekends, this week's events are mostly past — fetch next week instead
-    const now = new Date()
-    const dayET = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay()
-    const isWeekend = dayET === 0 || dayET === 6
-    const calUrl = isWeekend
-      ? 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'
-      : 'https://nfs.faireconomy.media/ff_calendar_thisweek.json'
+  // NOTE: Forex Factory and most calendar APIs block cloud server IPs.
+  // We use a computed schedule based on known recurring event patterns.
+  // This is imported from calendar-schedule.ts
+  const { computeWeekCalendar } = await import('./calendar-schedule')
+  return computeWeekCalendar()
+}
 
-    const res = await fetch(calUrl, {
+// Legacy function kept for compatibility - now uses computed calendar
+async function _fetchWeekCalendarLive(): Promise<CalendarDay[]> {
+  try {
+    const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
       headers: { 'User-Agent': 'TradingWatchtower/2.0' },
       next: { revalidate: 3600 },
     })
-
-    // Fallback to thisweek if nextweek fails
-    let events: any[] = []
-    if (!res.ok) {
-      const fallback = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
-        headers: { 'User-Agent': 'TradingWatchtower/2.0' },
-        next: { revalidate: 3600 },
-      })
-      if (fallback.ok) events = await fallback.json()
-      else throw new Error(`FF calendar HTTP ${res.status}`)
-    } else {
-      events = await res.json()
-    }
+    if (!res.ok) throw new Error(`FF calendar HTTP ${res.status}`)
+    const events: any[] = await res.json()
 
     const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
     const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
@@ -490,6 +473,11 @@ export async function fetchESFutures(): Promise<ESFuturesData> {
   }
 }
 
+
+import type { CalendarDay } from './calendar-schedule'
+
+// ─── CALENDAR ─────────────────────────────────────────────────────────────────
+export { computeWeekCalendar, CalendarDay } from './calendar-schedule'
 
 // ─── MARKET SCHEDULE HELPERS ──────────────────────────────────────────────────
 
