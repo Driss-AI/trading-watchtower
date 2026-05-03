@@ -217,7 +217,7 @@ export async function fetchWeekCalendar(): Promise<CalendarDay[]> {
     }
 
     const days: CalendarDay[] = []
-    for (const [date, dayEvents] of [...byDate.entries()].sort()) {
+    for (const [date, dayEvents] of Array.from(byDate.entries()).sort()) {
       const dt = new Date(date + 'T12:00:00Z')
       const dayName = dt.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })
       days.push({
