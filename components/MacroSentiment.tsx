@@ -12,11 +12,13 @@ interface YieldData {
 interface ESData {
   price: number; changePct: number; premarketChangePct: number | null; direction: string
 }
+interface MarketStatus { isWeekend: boolean; isPreMarket: boolean; isMarketHours: boolean; isAfterHours: boolean; nextSessionLabel: string; contextLabel: string }
 interface Macro {
   fearGreed: FearGreed | null; us10y: YieldData | null; dxy: YieldData | null; es: ESData | null
   nqBias: string; nqBiasLabel: string
   bullishSignals: string[]; bearishSignals: string[]
   suggestUS10yAgainst: boolean; suggestDXYAgainst: boolean
+  marketStatus: MarketStatus | null
   fetchedAt: string; errors: string[]
 }
 
@@ -79,7 +81,9 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '13px' }}>🌐</span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>MACRO MARKET SENTIMENT — NQ BIAS</span>
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+            {macro.marketStatus?.isWeekend ? "WEEKEND MACRO OUTLOOK — NEXT WEEK'S NQ BIAS" : macro.marketStatus?.isMarketHours ? 'LIVE MACRO SENTIMENT — NQ BIAS' : 'MACRO MARKET SENTIMENT — NQ BIAS'}
+          </span>
           {lastUpdated && <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>· {lastUpdated} ET</span>}
         </div>
         <button onClick={load} className="btn btn-ghost" style={{ fontSize: '11px', padding: '4px 10px' }}>↻</button>
@@ -90,7 +94,7 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
         <div style={{ background: biasBg, border: `1px solid ${biasBorder}`, borderRadius: '8px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: biasColor, fontWeight: '700', letterSpacing: '0.1em', marginBottom: '4px' }}>
-              TODAY'S NQ MACRO BIAS
+              {macro.marketStatus?.isWeekend ? "NEXT WEEK'S NQ MACRO BIAS" : macro.marketStatus?.isAfterHours ? "NEXT SESSION'S NQ MACRO BIAS" : macro.marketStatus?.isMarketHours ? 'LIVE NQ MACRO BIAS' : "PRE-MARKET NQ MACRO BIAS"}
             </div>
             <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '15px', fontWeight: '700', color: biasColor }}>
               {macro.nqBiasLabel}

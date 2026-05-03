@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import MorningBriefing from '@/components/MorningBriefing'
 import MacroSentiment from '@/components/MacroSentiment'
+import EconomicCalendar from '@/components/EconomicCalendar'
 
 interface Session {
   id: string; date: string; market: string; score: number; decision: string
@@ -68,6 +69,7 @@ export default function Dashboard() {
       {/* Morning Briefing Widget */}
       <MorningBriefing />
       <MacroSentiment />
+      <EconomicCalendar />
 
       {loading ? (
         <div style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px' }}>Loading...</div>

@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server'
-import { fetchMarketBriefing } from '@/lib/market-data'
+import { fetchMarketBriefing, fetchWeekCalendar, getMarketStatus } from '@/lib/market-data'
 
-// GET /api/market-data
-// Returns VIX, QQQ premarket, NQ overnight, today's economic events
-// No API key required — uses Yahoo Finance + Forex Factory (free, public)
+// GET /api/market-data — VIX, QQQ, NQ, today's news + full week calendar
 export async function GET() {
   try {
-    const briefing = await fetchMarketBriefing()
-    return NextResponse.json({ briefing })
+    const [briefing, weekCalendar] = await Promise.all([
+      fetchMarketBriefing(),
+      fetchWeekCalendar(),
+    ])
+    const marketStatus = getMarketStatus()
+    return NextResponse.json({ briefing, weekCalendar, marketStatus })
   } catch (err) {
     console.error('[MarketData API]', err)
-    return NextResponse.json({ error: 'Failed to fetch market data', briefing: null }, { status: 500 })
+    return NextResponse.json({ error: String(err), briefing: null, weekCalendar: [], marketStatus: null }, { status: 500 })
   }
 }

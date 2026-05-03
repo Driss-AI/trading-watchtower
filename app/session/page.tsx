@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import MorningBriefing from '@/components/MorningBriefing'
 import MacroSentiment from '@/components/MacroSentiment'
+import EconomicCalendar from '@/components/EconomicCalendar'
 
 interface ScoreFactor { label: string; points: number; met: boolean }
 
@@ -96,6 +97,7 @@ export default function SessionPage() {
       {/* Morning Briefing with auto-populate */}
       <MorningBriefing onAutoPopulate={handleAutoPopulate} />
       <MacroSentiment onMacroLoad={(d) => setForm(f => ({ ...f, us10yAgainst: d.us10yAgainst, dxyAgainst: d.dxyAgainst }))} />
+      <EconomicCalendar />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,380px)', gap: '20px', alignItems: 'start' }}>
         {/* Left: Form */}
