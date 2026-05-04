@@ -171,11 +171,77 @@ export async function fetchEconomicCalendar(todayOnly = false): Promise<NewsEven
 }
 
 export async function fetchWeekCalendar(): Promise<CalendarDay[]> {
-  // NOTE: Forex Factory and most calendar APIs block cloud server IPs.
-  // We use a computed schedule based on known recurring event patterns.
-  // This is imported from calendar-schedule.ts
+  // Try live ForexFactory data via Cloudflare Worker proxy first
+  const proxyURL = process.env.FF_CALENDAR_PROXY_URL
+  if (proxyURL) {
+    try {
+      const [thisWeek, nextWeek] = await Promise.all([
+        _fetchFromProxy(proxyURL, 'this'),
+        _fetchFromProxy(proxyURL, 'next'),
+      ])
+      const combined = mergeDays(thisWeek, nextWeek)
+      if (combined.length > 0) return combined
+    } catch (err) {
+      console.warn('[Calendar] Proxy failed, falling back to computed schedule:', err)
+    }
+  }
+  // Fallback: computed schedule from known recurring events
   const { computeWeekCalendar } = await import('./calendar-schedule')
   return computeWeekCalendar()
+}
+
+async function _fetchFromProxy(proxyURL: string, week: 'this' | 'next'): Promise<CalendarDay[]> {
+  const res = await fetch(`${proxyURL}?week=${week}`, {
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(8000),
+  })
+  if (!res.ok) throw new Error(`Proxy returned ${res.status}`)
+  const events: any[] = await res.json()
+
+  const nowET    = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const todayET  = nowET.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const tomorrow = new Date(nowET); tomorrow.setDate(nowET.getDate() + 1)
+  const tomorrowET = tomorrow.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+
+  const byDate = new Map<string, NewsEvent[]>()
+  for (const e of events) {
+    if (e.currency !== 'USD') continue
+    const date = e.date?.split('T')[0]
+    if (!date) continue
+    const dt = new Date(date + 'T12:00:00Z')
+    if (dt.getDay() === 0 || dt.getDay() === 6) continue
+    if (!byDate.has(date)) byDate.set(date, [])
+    byDate.get(date)!.push({
+      time: e.time ?? 'All Day',
+      title: e.title ?? '',
+      currency: 'USD',
+      impact: (e.impact?.toLowerCase() === 'high' ? 'high'
+             : e.impact?.toLowerCase() === 'medium' ? 'medium' : 'low') as 'high' | 'medium' | 'low',
+      forecast: e.forecast ?? undefined,
+      previous: e.previous ?? undefined,
+    })
+  }
+
+  const days: CalendarDay[] = []
+  for (const [date, dayEvents] of Array.from(byDate.entries()).sort()) {
+    const dt = new Date(date + 'T12:00:00Z')
+    const dateLabel = dt.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })
+    days.push({
+      date,
+      dateLabel,
+      isToday: date === todayET,
+      isTomorrow: date === tomorrowET,
+      events: dayEvents.filter(e => e.title),
+      hasHighImpact: dayEvents.some(e => e.impact === 'high'),
+    })
+  }
+  return days
+}
+
+function mergeDays(a: CalendarDay[], b: CalendarDay[]): CalendarDay[] {
+  const map = new Map<string, CalendarDay>()
+  for (const d of [...a, ...b]) map.set(d.date, d)
+  return Array.from(map.values()).sort((x, y) => x.date.localeCompare(y.date))
 }
 
 // Legacy function kept for compatibility - now uses computed calendar
