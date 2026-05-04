@@ -227,6 +227,53 @@ export async function testConnection(): Promise<{ connected: boolean; account: T
   }
 }
 
+// ─── STATUS PING ──────────────────────────────────────────────────────────────
+// GET /api/Status/Ping — unauthenticated, just checks if the API is reachable
+export async function pingAPI(): Promise<{ reachable: boolean; latencyMs: number }> {
+  const t0 = Date.now()
+  try {
+    const res = await fetch(`${BASE_URL}/api/Status/Ping`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    })
+    return { reachable: res.ok || res.status === 401, latencyMs: Date.now() - t0 }
+  } catch {
+    return { reachable: false, latencyMs: Date.now() - t0 }
+  }
+}
+
+// ─── TOKEN VALIDATION / REFRESH ───────────────────────────────────────────────
+// POST /api/Auth/validate — refreshes token without re-logging in
+export async function validateAndRefreshToken(): Promise<string> {
+  if (_tokenCache && Date.now() < _tokenCache.expiresAt - 30 * 60 * 1000) {
+    // Try to refresh via validate endpoint first
+    try {
+      const res = await fetch(`${BASE_URL}/api/Auth/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${_tokenCache.token}`,
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success && data.newToken) {
+          _tokenCache = { token: data.newToken, expiresAt: Date.now() + 23.5 * 60 * 60 * 1000 }
+          return data.newToken
+        }
+      }
+    } catch {}
+    // Fall back to existing cached token
+    return _tokenCache.token
+  }
+  // Full re-login
+  return getTopstepXToken()
+}
+
 // ─── TRADES (FILL HISTORY) ────────────────────────────────────────────────────
 export interface TSXTrade {
   id: number

@@ -1,8 +1,8 @@
 // ─── TOPSTEPX SIGNALR WEBSOCKET MANAGER ──────────────────────────────────────
 // Manages persistent SignalR connections to TopstepX real-time hubs.
 // Two hubs:
-//   User Hub   (rtc.topstepx.com/user)   — trades, account, positions, orders
-//   Market Hub (rtc.topstepx.com/market) — live quotes, ticks, depth
+//   User Hub   (rtc.topstepx.com/hubs/user)   — trades, account, positions, orders
+//   Market Hub (rtc.topstepx.com/hubs/market) — live quotes, ticks, depth
 //
 // ⚠️  READ-ONLY listener. Order execution remains permanently disabled.
 
@@ -98,7 +98,7 @@ function broadcast(event: WSEvent) {
 
 async function buildUserHub(): Promise<signalR.HubConnection> {
   const hub = new signalR.HubConnectionBuilder()
-    .withUrl(`${WS_BASE}/user`, {
+    .withUrl(`${WS_BASE}/hubs/user`, {
       accessTokenFactory: () => getTopstepXToken(),
       transport: signalR.HttpTransportType.WebSockets,
       skipNegotiation: true,
@@ -159,7 +159,7 @@ export function getUserHubState(): string {
 
 async function buildMarketHub(): Promise<signalR.HubConnection> {
   const hub = new signalR.HubConnectionBuilder()
-    .withUrl(`${WS_BASE}/market`, {
+    .withUrl(`${WS_BASE}/hubs/market`, {
       accessTokenFactory: () => getTopstepXToken(),
       transport: signalR.HttpTransportType.WebSockets,
       skipNegotiation: true,
@@ -251,7 +251,7 @@ export async function testSignalRConnection(): Promise<{ connected: boolean; err
   let hub: signalR.HubConnection | null = null
   try {
     hub = new signalR.HubConnectionBuilder()
-      .withUrl(`${WS_BASE}/user`, {
+      .withUrl(`${WS_BASE}/hubs/user`, {
         accessTokenFactory: () => getTopstepXToken(),
         transport: signalR.HttpTransportType.WebSockets,
         skipNegotiation: true,

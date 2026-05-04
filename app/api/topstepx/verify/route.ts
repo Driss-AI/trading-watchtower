@@ -11,6 +11,7 @@ import {
   getActiveMNQContractId,
   getTodayTrades,
   searchContracts,
+  pingAPI,
 } from '@/lib/topstepx'
 import { testSignalRConnection } from '@/lib/topstepx-ws'
 
@@ -55,6 +56,15 @@ export async function GET() {
   }
 
   const checks: CheckResult[] = []
+
+  // ── 0. API Reachability Ping ──────────────────────────────────────────────────
+  checks.push(
+    await runCheck('API reachability (Status/Ping)', async () => {
+      const { reachable, latencyMs } = await pingAPI()
+      if (!reachable) throw new Error('api.topstepx.com unreachable')
+      return { latencyMs }
+    })
+  )
 
   // ── 1. Auth ──────────────────────────────────────────────────────────────────
   const authCheck = await runCheck('JWT Authentication', async () => {
