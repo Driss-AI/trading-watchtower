@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import TopstepXStatus from '@/components/TopstepXStatus'
 
 export default function SettingsPage() {
   const [form, setForm] = useState<any>(null)
@@ -100,20 +101,11 @@ export default function SettingsPage() {
             </code>
           </div>
         </div>
-
-        {/* TopstepX Scaffold */}
-        <div className="card" style={{ gridColumn: 'span 2', borderColor: 'var(--border)', opacity: 0.7 }}>
-          <div style={st.title}>05 · TOPSTEPX API — READ-ONLY SCAFFOLD (NOT ACTIVE)</div>
-          <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', borderRadius: '6px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: 'var(--yellow)' }}>
-            ⚠️ TopstepX read-only API is scaffolded but not active. These fields will be used in Phase 3 when you add your API credentials. Order execution is permanently disabled.
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <Field label="API Key" value={form.topstepxApiKey ?? ''} onChange={v => set('topstepxApiKey', v)} placeholder="Not yet configured" secret />
-            <Field label="Account ID" value={form.topstepxAccountId ?? ''} onChange={v => set('topstepxAccountId', v)} placeholder="Not yet configured" />
-            <Field label="Base URL" value={form.topstepxBaseUrl ?? ''} onChange={v => set('topstepxBaseUrl', v)} />
-          </div>
-          <div style={{ marginTop: '12px', padding: '10px 14px', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: '6px', fontSize: '12px', color: 'var(--red)', fontFamily: 'IBM Plex Mono, monospace' }}>
-            ⛔ ENABLE_ORDER_EXECUTION is permanently FALSE — this app never places trades
+        <div className="card" style={{ gridColumn: 'span 2' }}>
+          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '16px' }}>05 · TOPSTEPX API — INTEGRATION</div>
+          <TopstepXStatus />
+          <div style={{ marginTop: '16px', padding: '10px 14px', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: '6px', fontSize: '12px', color: 'var(--red)', fontFamily: 'IBM Plex Mono, monospace' }}>
+            ⛔ ORDER EXECUTION IS PERMANENTLY DISABLED — this app never places or cancels trades
           </div>
         </div>
       </div>

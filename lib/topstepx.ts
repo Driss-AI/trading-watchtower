@@ -227,6 +227,41 @@ export async function testConnection(): Promise<{ connected: boolean; account: T
   }
 }
 
+// ─── TRADES (FILL HISTORY) ────────────────────────────────────────────────────
+export interface TSXTrade {
+  id: number
+  accountId: number
+  contractId: string
+  creationTimestamp: string
+  price: number
+  profitAndLoss: number
+  fees: number
+  side: number     // 0=BUY, 1=SELL
+  size: number
+  orderId?: number
+}
+
+export async function getTrades(
+  accountId: number,
+  startTime?: Date,
+  endTime?: Date,
+  limit = 100
+): Promise<TSXTrade[]> {
+  const body: Record<string, unknown> = { accountId, limit }
+  if (startTime) body.startTimestamp = startTime.toISOString()
+  if (endTime)   body.endTimestamp   = endTime.toISOString()
+  const data = await apiPost<{ trades: TSXTrade[] }>('/api/Trade/search', body)
+  return (data.trades ?? []).sort(
+    (a, b) => new Date(b.creationTimestamp).getTime() - new Date(a.creationTimestamp).getTime()
+  )
+}
+
+export async function getTodayTrades(accountId: number): Promise<TSXTrade[]> {
+  const startTime = new Date()
+  startTime.setUTCHours(0, 0, 0, 0)
+  return getTrades(accountId, startTime, undefined, 200)
+}
+
 // ─── ORDER EXECUTION — PERMANENTLY DISABLED ──────────────────────────────────
 export function placeOrder(): never  { throw new Error('⛔ ORDER EXECUTION IS PERMANENTLY DISABLED.') }
 export function cancelOrder(): never { throw new Error('⛔ ORDER EXECUTION IS PERMANENTLY DISABLED.') }
