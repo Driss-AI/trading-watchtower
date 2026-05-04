@@ -5,6 +5,8 @@ import MorningBriefing from '@/components/MorningBriefing'
 import SessionTimer from '@/components/SessionTimer'
 import MacroSentiment from '@/components/MacroSentiment'
 import EconomicCalendar from '@/components/EconomicCalendar'
+import DrawdownMeter from '@/components/DrawdownMeter'
+import LivePosition from '@/components/LivePosition'
 
 interface Session {
   id: string; date: string; market: string; score: number; decision: string
@@ -122,26 +124,15 @@ export default function Dashboard() {
             <MetricCard label="Losses Today" value={`${session?.losesCount ?? 0} / ${settings?.maxLosingTradesPerDay ?? 2}`} color={(session?.losesCount ?? 0) >= (settings?.maxLosingTradesPerDay ?? 2) ? 'red' : undefined} />
           </div>
 
-          {/* Account Progress */}
-          {settings && (
-            <div className="card" style={{ marginBottom: '20px' }}>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', letterSpacing: '0.1em', marginBottom: '16px' }}>
-                TOPSTEP 100K · EVALUATION STATUS
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                {[
-                  { label: 'Profit Target', value: `$${settings.profitTarget.toLocaleString()}`, color: 'var(--green)' },
-                  { label: 'Daily Loss Limit', value: `$${settings.dailyLossLimit.toLocaleString()}`, color: 'var(--red)' },
-                  { label: 'Trailing DD', value: `$${settings.trailingDrawdown.toLocaleString()}`, color: 'var(--yellow)' },
-                ].map(({ label, value, color }) => (
-                  <div key={label}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
-                    <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '18px', fontWeight: '700', color }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Live Position Banner */}
+          <div style={{ marginBottom: '12px' }}>
+            <LivePosition />
+          </div>
+
+          {/* Live Trailing Drawdown Meter */}
+          <div className="card" style={{ marginBottom: '20px' }}>
+            <DrawdownMeter />
+          </div>
 
           {/* Quick Actions */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
