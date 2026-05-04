@@ -171,31 +171,45 @@ export async function fetchEconomicCalendar(todayOnly = false): Promise<NewsEven
 }
 
 export async function fetchWeekCalendar(): Promise<CalendarDay[]> {
-  // Try live ForexFactory data via Cloudflare Worker proxy first
+  // Strategy 1: Direct ForexFactory (Railway IP is not blocked)
+  try {
+    const [thisWeek, nextWeek] = await Promise.allSettled([
+      _fetchFromProxy('https://nfs.faireconomy.media/ff_calendar', 'this'),
+      _fetchFromProxy('https://nfs.faireconomy.media/ff_calendar', 'next'),
+    ])
+    const days: CalendarDay[] = []
+    if (thisWeek.status === 'fulfilled') days.push(...thisWeek.value)
+    if (nextWeek.status === 'fulfilled') days.push(...nextWeek.value)
+    const combined = mergeDays(days, [])
+    if (combined.length > 0) { console.info('[Calendar] Direct FF: ' + combined.length + ' days'); return combined }
+  } catch (err) { console.warn('[Calendar] Direct FF failed:', err) }
+  // Strategy 2: CF proxy fallback
   const proxyURL = process.env.FF_CALENDAR_PROXY_URL
   if (proxyURL) {
     try {
-      const [thisWeek, nextWeek] = await Promise.all([
+      const [thisWeek, nextWeek] = await Promise.allSettled([
         _fetchFromProxy(proxyURL, 'this'),
         _fetchFromProxy(proxyURL, 'next'),
       ])
-      const combined = mergeDays(thisWeek, nextWeek)
+      const days: CalendarDay[] = []
+      if (thisWeek.status === 'fulfilled') days.push(...thisWeek.value)
+      if (nextWeek.status === 'fulfilled') days.push(...nextWeek.value)
+      const combined = mergeDays(days, [])
       if (combined.length > 0) return combined
-    } catch (err) {
-      console.warn('[Calendar] Proxy failed, falling back to computed schedule:', err)
-    }
+    } catch (err) { console.warn('[Calendar] Proxy failed, using computed:', err) }
   }
-  // Fallback: computed schedule from known recurring events
   const { computeWeekCalendar } = await import('./calendar-schedule')
   return computeWeekCalendar()
 }
 
 async function _fetchFromProxy(proxyURL: string, week: 'this' | 'next'): Promise<CalendarDay[]> {
-  const res = await fetch(`${proxyURL}?week=${week}`, {
+  const fullURL = proxyURL.endsWith('/ff_calendar') ? `${proxyURL}_${week}week.json` : `${proxyURL}?week=${week}`
+  const res = await fetch(fullURL, {
+    headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json', 'Referer': 'https://www.forexfactory.com/' },
     next: { revalidate: 3600 },
     signal: AbortSignal.timeout(8000),
   })
-  if (!res.ok) throw new Error(`Proxy returned ${res.status}`)
+  if (!res.ok) throw new Error(`Fetch returned ${res.status} for ${fullURL}`)
   const events: any[] = await res.json()
 
   const nowET    = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
