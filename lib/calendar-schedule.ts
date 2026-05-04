@@ -198,12 +198,52 @@ const SCHEDULED_EVENTS: ScheduledEvent[] = [
   // Q1 advance: end of April; Q2 advance: end of July, etc.
   // Too variable to hardcode precisely — skip for now
 
-  // JOLTS — 2nd week Tuesday
+  // JOLTS — 2nd week Tuesday (3-star, moves NQ on labor market narrative)
   {
     title: 'JOLTS Job Openings',
-    impact: 'medium',
+    impact: 'high',
     time: '10:00am',
     rule: (y, m) => [nthWeekday(y, m, 2, 2)], // 2nd Tuesday
+  },
+
+  // New Home Sales — usually 4th week Tuesday/Wednesday
+  {
+    title: 'New Home Sales',
+    impact: 'medium',
+    time: '10:00am',
+    rule: (y, m) => [nthWeekday(y, m, 4, 2)], // approximate: 4th Tuesday
+  },
+
+  // Retail Sales — usually 2nd week Wednesday
+  {
+    title: 'Retail Sales (MoM)',
+    impact: 'high',
+    time: '8:30am',
+    rule: (y, m) => [nthWeekday(y, m, 2, 3)], // 2nd Wednesday
+  },
+
+  // Consumer Price Index — usually 2nd week Wednesday
+  {
+    title: 'CPI (YoY)',
+    impact: 'high',
+    time: '8:30am',
+    rule: (y, m) => [nthWeekday(y, m, 2, 3)], // 2nd Wednesday (same week as retail)
+  },
+
+  // Producer Price Index — usually 2nd week Thursday
+  {
+    title: 'PPI (MoM)',
+    impact: 'high',
+    time: '8:30am',
+    rule: (y, m) => [nthWeekday(y, m, 2, 4)], // 2nd Thursday
+  },
+
+  // GDP Advance — end of month (last week, varies — approximate)
+  {
+    title: 'GDP (QoQ)',
+    impact: 'high',
+    time: '8:30am',
+    rule: (y, m) => [nthWeekday(y, m, 4, 4)], // approximate: 4th Thursday
   },
 
   // ADP Employment — Wednesday before NFP
