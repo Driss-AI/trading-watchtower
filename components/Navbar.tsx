@@ -1,5 +1,5 @@
 'use client'
-import SessionTimerCompact from './SessionTimer'
+import SessionTimerCompact, { SessionTimerNavbar } from './SessionTimer'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -94,8 +94,10 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Session Timer */}
-        <SessionTimerCompact />
+        {/* Session Timer — compact pill in navbar */}
+        <div style={{ flexShrink: 0 }}>
+          <SessionTimerNavbar />
+        </div>
       </div>
     </nav>
   )

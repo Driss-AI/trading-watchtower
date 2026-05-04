@@ -290,3 +290,39 @@ export default function SessionTimer() {
     </div>
   )
 }
+
+// ─── COMPACT NAVBAR VERSION ───────────────────────────────────────────────────
+export function SessionTimerNavbar() {
+  const [s, setS] = useState<TimerState | null>(null)
+  useEffect(() => {
+    setS(computeState())
+    const id = setInterval(() => setS(computeState()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  if (!s) return null
+  const isLive = s.phase === 'orb_window' || s.phase === 'post_orb'
+  const countdown = s.hours > 0
+    ? `${pad2(s.hours)}:${pad2(s.minutes)}:${pad2(s.seconds)}`
+    : `${pad2(s.minutes)}:${pad2(s.seconds)}`
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '8px',
+      padding: '5px 12px',
+      background: 'var(--card)',
+      border: `1px solid ${s.borderColor}`,
+      borderRadius: '20px',
+      fontFamily: 'IBM Plex Mono, monospace',
+      fontSize: '11px',
+      whiteSpace: 'nowrap',
+      boxShadow: isLive ? `0 0 10px ${s.color}30` : 'none',
+    }}>
+      {isLive && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: s.color, animation: 'timerPulse 1.2s ease-in-out infinite', flexShrink: 0 }} />}
+      <span style={{ color: s.color, fontWeight: 700, letterSpacing: '0.05em' }}>
+        {isLive ? s.label : s.phase === 'pre_session' || s.phase === 'approaching' ? 'NEXT SESSION' : s.label}
+      </span>
+      <span style={{ color: 'var(--text-dim)' }}>·</span>
+      <span style={{ color: 'var(--text-primary)', fontWeight: 600, letterSpacing: '0.05em' }}>{countdown}</span>
+      <span style={{ color: 'var(--text-dim)', fontSize: '10px' }}>{s.dubaiTime} DXB</span>
+    </div>
+  )
+}
