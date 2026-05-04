@@ -147,8 +147,14 @@ export async function getActiveMNQContractId(): Promise<string> {
   return mnq[0]?.id ?? buildFrontMonthContractId('MNQ')
 }
 
+// ─── AGGREGATE BAR UNITS (from Swagger enum AggregateBarUnit) ────────────────
+// 0=Unspecified, 1=Second, 2=Minute, 3=Hour, 4=Day, 5=Week, 6=Month
+export const BarUnit = { Second: 1, Minute: 2, Hour: 3, Day: 4, Week: 5, Month: 6 } as const
+
+// ─── POSITION TYPES (from Swagger enum PositionType) ─────────────────────────
+// 0=Undefined (flat), 1=Long, 2=Short
+export const PositionTypeEnum = { Undefined: 0, Long: 1, Short: 2 } as const
 // ─── HISTORICAL BARS ──────────────────────────────────────────────────────────
-export interface TSXBar { t: string; o: number; h: number; l: number; c: number; v: number }
 
 export async function getMinuteBars(
   contractId: string, startTime: Date, endTime: Date, live = true, limit = 100
@@ -157,7 +163,7 @@ export async function getMinuteBars(
     contractId, live,
     startTime: startTime.toISOString(),
     endTime: endTime.toISOString(),
-    unit: 2, unitNumber: 1, limit,
+    unit: BarUnit.Minute, unitNumber: 1, limit,
     includePartialBar: false,
   })
   return (data.bars ?? []).sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime())
@@ -228,11 +234,11 @@ export async function testConnection(): Promise<{ connected: boolean; account: T
 }
 
 // ─── STATUS PING ──────────────────────────────────────────────────────────────
-// GET /api/Status/Ping — unauthenticated, just checks if the API is reachable
+// GET /api/Status/ping — unauthenticated, just checks if the API is reachable
 export async function pingAPI(): Promise<{ reachable: boolean; latencyMs: number }> {
   const t0 = Date.now()
   try {
-    const res = await fetch(`${BASE_URL}/api/Status/Ping`, {
+    const res = await fetch(`${BASE_URL}/api/Status/ping`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
