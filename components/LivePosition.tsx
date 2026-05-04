@@ -109,7 +109,7 @@ export default function LivePosition() {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '16px',
+          gap: '12px',
           padding: '14px 20px',
           background: position.direction === 'LONG'
             ? 'rgba(93, 202, 165, 0.1)'
@@ -117,7 +117,6 @@ export default function LivePosition() {
           border: `1px solid ${position.direction === 'LONG' ? 'var(--green)' : 'var(--red)'}`,
           borderRadius: '10px',
           flexWrap: 'wrap',
-          gap: '12px',
         }}>
           <div style={{
             fontFamily: 'IBM Plex Mono, monospace',
