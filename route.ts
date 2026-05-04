@@ -27,13 +27,14 @@ async function resolveContractId(symbolOrId: string | null, contractId: string |
   const sym = symbolOrId.toUpperCase()
   if (sym === 'NQ')  return getActiveNQContractId()
   if (sym === 'MNQ') return getActiveMNQContractId()
-  // Allow caller to pass a symbol root like "ES" — fall back to that.
+  // Allow caller to pass a symbol root we don't know about — caller can use
+  // ?contractId= directly in that case.
   return null
 }
 
 export async function GET(req: NextRequest) {
-  const hub        = req.nextUrl.searchParams.get('hub') ?? 'user'
-  const symbolParam = req.nextUrl.searchParams.get('symbol')
+  const hub             = req.nextUrl.searchParams.get('hub') ?? 'user'
+  const symbolParam     = req.nextUrl.searchParams.get('symbol')
   const contractIdParam = req.nextUrl.searchParams.get('contractId')
 
   if (!process.env.TOPSTEPX_USERNAME || !process.env.TOPSTEPX_API_KEY) {
