@@ -1,4 +1,4 @@
-// GET /api/topstepx/sync
+undefined// GET /api/topstepx/sync
 // Pulls today's fills from TopstepX, returns P&L summary,
 // and auto-creates journal trade entries for any fill not yet logged.
 
