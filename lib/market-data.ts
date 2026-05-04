@@ -477,7 +477,8 @@ export async function fetchESFutures(): Promise<ESFuturesData> {
 import type { CalendarDay } from './calendar-schedule'
 
 // ─── CALENDAR ─────────────────────────────────────────────────────────────────
-export { computeWeekCalendar, CalendarDay } from './calendar-schedule'
+export { computeWeekCalendar } from './calendar-schedule'
+export type { CalendarDay } from './calendar-schedule'
 
 // ─── MARKET SCHEDULE HELPERS ──────────────────────────────────────────────────
 

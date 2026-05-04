@@ -1,5 +1,5 @@
 'use client'
-import { SessionTimerCompact } from './SessionTimer'
+import SessionTimerCompact from './SessionTimer'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
