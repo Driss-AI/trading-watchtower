@@ -175,7 +175,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
   hub.onreconnected(async () => {
     broadcast({ type: 'connected', hub: 'market' })
     // Re-subscribe to all contracts after reconnect
-    for (const contractId of _subscribedContracts) {
+    for (const contractId of Array.from(_subscribedContracts)) {
       try { await hub.invoke('SubscribeContractQuotes', contractId) } catch {}
     }
   })
