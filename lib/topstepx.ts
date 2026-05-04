@@ -155,6 +155,7 @@ export const BarUnit = { Second: 1, Minute: 2, Hour: 3, Day: 4, Week: 5, Month: 
 // 0=Undefined (flat), 1=Long, 2=Short
 export const PositionTypeEnum = { Undefined: 0, Long: 1, Short: 2 } as const
 // ─── HISTORICAL BARS ──────────────────────────────────────────────────────────
+export interface TSXBar { t: string; o: number; h: number; l: number; c: number; v: number }
 
 export async function getMinuteBars(
   contractId: string, startTime: Date, endTime: Date, live = true, limit = 100
