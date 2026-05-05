@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
 interface VIXData { level: number; changePct: number; extreme: boolean; elevated: boolean; status: string; label: string }
 interface QQQData { price: number; premarketPrice: number | null; premarketChangePct: number | null; regularChangePct: number; direction: string }
@@ -8,6 +8,16 @@ interface NewsEvent { time: string; title: string; impact: 'high' | 'medium' | '
 interface Briefing { vix: VIXData | null; qqq: QQQData | null; nq: NQData | null; news: NewsEvent[]; hasHighImpactNewsToday: boolean; fetchedAt: string; errors: string[] }
 
 interface TopstepXAccount { id: number; name: string; balance: number; canTrade: boolean }
+
+// ─── LIVE QUOTE (from /api/topstepx/stream?hub=market&symbol=MNQ) ────────────
+interface LiveQuote {
+  price: number
+  high: number
+  low: number
+  change: number
+  changePct: number
+  ts: string
+}
 
 interface Props {
   onAutoPopulate?: (data: {
@@ -18,6 +28,11 @@ interface Props {
   }) => void
 }
 
+// Refresh cadence for the briefing while the page is open.
+// VIX/QQQ/account drift slowly; 30s strikes a balance between freshness and
+// hammering Yahoo + TopstepX. The NQ tile is independent and tick-driven.
+const BRIEFING_REFRESH_MS = 30_000
+
 export default function MorningBriefing({ onAutoPopulate }: Props) {
   const [briefing, setBriefing] = useState<Briefing | null>(null)
   const [account, setAccount] = useState<TopstepXAccount | null>(null)
@@ -26,11 +41,15 @@ export default function MorningBriefing({ onAutoPopulate }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string>('')
 
+  // Live MNQ quote layered over briefing.nq for the NQ tile only.
+  const [liveQuote, setLiveQuote] = useState<LiveQuote | null>(null)
+  const [streaming, setStreaming] = useState(false)
+  const esRef = useRef<EventSource | null>(null)
+
   const loadMarketData = useCallback(async () => {
-    setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/market-data')
+      const res = await fetch('/api/market-data', { cache: 'no-store' })
       const { briefing: b } = await res.json()
       setBriefing(b)
       if (b?.fetchedAt) {
@@ -46,7 +65,7 @@ export default function MorningBriefing({ onAutoPopulate }: Props) {
   const loadAccount = useCallback(async () => {
     setAccountLoading(true)
     try {
-      const res = await fetch('/api/topstepx/account')
+      const res = await fetch('/api/topstepx/account', { cache: 'no-store' })
       if (res.ok) {
         const { account: acc } = await res.json()
         setAccount(acc)
@@ -56,9 +75,67 @@ export default function MorningBriefing({ onAutoPopulate }: Props) {
     }
   }, [])
 
+  // Initial load + periodic refresh of the slow-changing tiles.
   useEffect(() => {
     loadMarketData()
     loadAccount()
+    const t = setInterval(() => {
+      loadMarketData()
+      loadAccount()
+    }, BRIEFING_REFRESH_MS)
+    return () => clearInterval(t)
+  }, [loadMarketData, loadAccount])
+
+  // Live MNQ stream for the NQ tile.
+  useEffect(() => {
+    let cancelled = false
+
+    const open = () => {
+      if (cancelled) return
+      const es = new EventSource('/api/topstepx/stream?hub=market&symbol=MNQ')
+      esRef.current = es
+
+      es.onopen = () => { if (!cancelled) setStreaming(true) }
+      es.onerror = () => {
+        if (cancelled) return
+        setStreaming(false)
+        // EventSource auto-reconnects on its own; nothing to do here.
+      }
+      es.onmessage = (e) => {
+        if (cancelled) return
+        try {
+          const event = JSON.parse(e.data)
+          if (event.type === 'quote' && event.data) {
+            const q = event.data
+            // sanity check — first tick after market open will have non-zero price
+            if (typeof q.price === 'number' && q.price > 0) {
+              setLiveQuote({
+                price: q.price,
+                high: q.sessionHigh,
+                low: q.sessionLow,
+                change: q.change,
+                changePct: q.changePct,
+                ts: q.timestamp,
+              })
+            }
+          } else if (event.type === 'disconnected') {
+            setStreaming(false)
+          } else if (event.type === 'connected') {
+            setStreaming(true)
+          }
+        } catch {}
+      }
+    }
+
+    open()
+
+    return () => {
+      cancelled = true
+      if (esRef.current) {
+        esRef.current.close()
+        esRef.current = null
+      }
+    }
   }, [])
 
   function handleAutoPopulate() {
@@ -77,6 +154,20 @@ export default function MorningBriefing({ onAutoPopulate }: Props) {
   const news = briefing?.news ?? []
   const highImpactNews = news.filter((e) => e.impact === 'high')
 
+  // The NQ tile prefers the live tick; falls back to the briefing snapshot.
+  const nqDisplay = liveQuote
+    ? {
+        price: liveQuote.price,
+        overnightHigh: liveQuote.high,
+        overnightLow: liveQuote.low,
+        changePct: liveQuote.changePct,
+      }
+    : nq
+
+  const liveTickAge = liveQuote
+    ? Math.round((Date.now() - new Date(liveQuote.ts).getTime()) / 1000)
+    : null
+
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', marginBottom: '20px', overflow: 'hidden' }}>
       {/* Header */}
@@ -89,6 +180,15 @@ export default function MorningBriefing({ onAutoPopulate }: Props) {
           {lastUpdated && (
             <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>
               · Updated {lastUpdated} ET
+            </span>
+          )}
+          {streaming && (
+            <span
+              title={`NQ tile streaming live${liveTickAge != null ? ` · last tick ${liveTickAge}s ago` : ''}`}
+              style={{ fontSize: '10px', color: 'var(--green)', fontFamily: 'IBM Plex Mono, monospace', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 6px var(--green)', display: 'inline-block', animation: 'mb-pulse 1.6s ease-in-out infinite' }} />
+              NQ LIVE
             </span>
           )}
         </div>
@@ -163,21 +263,21 @@ export default function MorningBriefing({ onAutoPopulate }: Props) {
               ) : <Placeholder />}
             </DataCard>
 
-            {/* NQ */}
+            {/* NQ — live when streaming, briefing snapshot otherwise */}
             <DataCard
-              label="NQ Futures"
+              label={streaming ? 'NQ Futures · LIVE' : 'NQ Futures'}
               icon="⚡"
-              status={nq ? (nq.changePct >= 0 ? 'green' : 'red') : 'dim'}
+              status={nqDisplay ? ((nqDisplay.changePct ?? 0) >= 0 ? 'green' : 'red') : 'dim'}
             >
-              {nq ? (
+              {nqDisplay ? (
                 <>
-                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '28px', fontWeight: '700', color: nq.changePct >= 0 ? 'var(--green)' : 'var(--red)', lineHeight: 1 }}>
-                    {nq.price.toFixed(0)}
+                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '28px', fontWeight: '700', color: (nqDisplay.changePct ?? 0) >= 0 ? 'var(--green)' : 'var(--red)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                    {nqDisplay.price.toFixed(2)}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    H: {nq.overnightHigh} · L: {nq.overnightLow}
-                    <span style={{ color: nq.changePct >= 0 ? 'var(--green)' : 'var(--red)', marginLeft: '6px' }}>
-                      {nq.changePct >= 0 ? '+' : ''}{nq.changePct}%
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', fontVariantNumeric: 'tabular-nums' }}>
+                    H: {nqDisplay.overnightHigh?.toFixed(2)} · L: {nqDisplay.overnightLow?.toFixed(2)}
+                    <span style={{ color: (nqDisplay.changePct ?? 0) >= 0 ? 'var(--green)' : 'var(--red)', marginLeft: '6px' }}>
+                      {(nqDisplay.changePct ?? 0) >= 0 ? '+' : ''}{nqDisplay.changePct?.toFixed(2)}%
                     </span>
                   </div>
                 </>
@@ -242,6 +342,8 @@ export default function MorningBriefing({ onAutoPopulate }: Props) {
           )}
         </div>
       ) : null}
+
+      <style>{`@keyframes mb-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }`}</style>
     </div>
   )
 }
