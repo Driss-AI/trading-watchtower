@@ -1,4 +1,4 @@
-undefined// ─── MARKET DATA — AUTO-FETCH ─────────────────────────────────────────────────
+// ─── MARKET DATA — AUTO-FETCH ─────────────────────────────────────────────────
 // VIX + QQQ from Yahoo Finance (free, no API key)
 // Economic calendar from Forex Factory JSON feed
 // NQ overnight range from Yahoo Finance
