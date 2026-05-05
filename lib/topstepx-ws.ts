@@ -53,11 +53,15 @@ export interface WSUserOrder {
   timestamp: string
 }
 
+// Internal shape that consumers use. We translate the raw ProjectX
+// GatewayQuote payload into this shape inside the handler so the rest of
+// the app doesn't have to know about ProjectX's field names.
 export interface WSQuote {
   contractId: string
   ask: number
   bid: number
-  price: number
+  price: number          // last traded price
+  open: number
   change: number
   changePct: number
   volume: number
@@ -84,7 +88,9 @@ export type WSEventHandler = (event: WSEvent) => void
 let _userHub:   signalR.HubConnection | null = null
 let _marketHub: signalR.HubConnection | null = null
 const _handlers = new Set<WSEventHandler>()
-let _subscribedContracts = new Set<string>()
+const _subscribedContracts = new Set<string>()
+// Last-known quote per contract (so a new SSE client gets an immediate value)
+const _lastQuote = new Map<string, WSQuote>()
 
 // ─── BROADCAST ────────────────────────────────────────────────────────────────
 
@@ -92,6 +98,25 @@ function broadcast(event: WSEvent) {
   _handlers.forEach((h) => {
     try { h(event) } catch {}
   })
+}
+
+// Translate a raw ProjectX GatewayQuote payload to our WSQuote shape.
+// ProjectX sends: { symbol, symbolName, lastPrice, bestBid, bestAsk, change,
+//                   changePercent, open, high, low, volume, lastUpdated, timestamp }
+function toWSQuote(contractId: string, raw: any): WSQuote {
+  return {
+    contractId,
+    ask:          Number(raw?.bestAsk      ?? 0),
+    bid:          Number(raw?.bestBid      ?? 0),
+    price:        Number(raw?.lastPrice    ?? 0),
+    open:         Number(raw?.open         ?? 0),
+    change:       Number(raw?.change       ?? 0),
+    changePct:    Number(raw?.changePercent ?? 0),
+    volume:       Number(raw?.volume       ?? 0),
+    sessionHigh:  Number(raw?.high         ?? 0),
+    sessionLow:   Number(raw?.low          ?? 0),
+    timestamp:    String(raw?.timestamp ?? raw?.lastUpdated ?? new Date().toISOString()),
+  }
 }
 
 // ─── USER HUB ─────────────────────────────────────────────────────────────────
@@ -168,8 +193,21 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
     .configureLogging(signalR.LogLevel.Warning)
     .build()
 
-  hub.on('GatewayQuote', (data: WSQuote) => {
+  // ⚠️  Market Hub events take TWO args: (contractId, payload).
+  // User Hub events take ONE arg. Don't confuse them.
+  hub.on('GatewayQuote', (contractId: string, raw: any) => {
+    const data = toWSQuote(contractId, raw)
+    _lastQuote.set(contractId, data)
     broadcast({ type: 'quote', data })
+  })
+
+  hub.on('GatewayTrade', (_contractId: string, _raw: any) => {
+    // Not currently surfaced to consumers — would need a separate event type.
+    // Left as a no-op so we don't drop the subscription if invoked.
+  })
+
+  hub.on('GatewayDepth', (_contractId: string, _raw: any) => {
+    // Same — DOM events not currently surfaced.
   })
 
   hub.onreconnected(async () => {
@@ -215,6 +253,8 @@ export async function subscribeToQuote(contractId: string): Promise<void> {
   if (!_marketHub || _marketHub.state !== signalR.HubConnectionState.Connected) {
     throw new Error('Market hub not connected — call connectMarketHub() first')
   }
+  // Idempotent — if already subscribed, don't re-invoke.
+  if (_subscribedContracts.has(contractId)) return
   await _marketHub.invoke('SubscribeContractQuotes', contractId)
   _subscribedContracts.add(contractId)
   console.log(`[TopstepX WS] Subscribed to quotes: ${contractId}`)
@@ -225,6 +265,11 @@ export async function unsubscribeFromQuote(contractId: string): Promise<void> {
     await _marketHub.invoke('UnsubscribeContractQuotes', contractId)
   }
   _subscribedContracts.delete(contractId)
+  _lastQuote.delete(contractId)
+}
+
+export function getLastQuote(contractId: string): WSQuote | null {
+  return _lastQuote.get(contractId) ?? null
 }
 
 // ─── EVENT SUBSCRIPTIONS ──────────────────────────────────────────────────────
