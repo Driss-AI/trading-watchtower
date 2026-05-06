@@ -1,13 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import MorningBriefing from '@/components/MorningBriefing'
-import SessionTimer from '@/components/SessionTimer'
 import MacroSentiment from '@/components/MacroSentiment'
 import EconomicCalendar from '@/components/EconomicCalendar'
 import DrawdownMeter from '@/components/DrawdownMeter'
 import LivePosition from '@/components/LivePosition'
 import LiveStats from '@/components/LiveStats'
+import ORBAlerts from '@/components/ORBAlerts'
 
 interface Session {
   id: string; date: string; market: string; score: number; decision: string
@@ -51,7 +50,10 @@ export default function Dashboard() {
 
   const remainingRisk = settings ? settings.dailyLossLimit - Math.abs(session?.dailyPnl ?? 0) : null
   const pnl = session?.dailyPnl ?? 0
-  const nyTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric' })
+
+  const nyTime = new Date().toLocaleString('en-US', {
+    timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric',
+  })
 
   return (
     <div>
@@ -65,15 +67,20 @@ export default function Dashboard() {
             {nyTime} · NY Session
           </p>
         </div>
-        <Link href="/session" className="btn btn-primary" style={{ textDecoration: 'none', display: 'inline-block' }}>
+        <a href="/session" className="btn btn-primary" style={{ textDecoration: 'none', display: 'inline-block' }}>
           + New Session
-        </Link>
+        </a>
       </div>
 
       {/* Morning Briefing Widget */}
       <MorningBriefing />
+
+      {/* ORB Breakout Alerts — monitors live price vs Opening Range */}
+      <ORBAlerts />
+
       {/* Live P&L + ORB — Topstep API */}
       <LiveStats />
+
       <MacroSentiment />
       <EconomicCalendar />
 
@@ -82,22 +89,37 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Decision Banner */}
-          <div style={{ background: decisionStyle.bg, border: `1px solid ${decisionStyle.border}`, borderRadius: '10px', padding: '28px 32px', marginBottom: '20px', boxShadow: decisionStyle.glow, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
+          <div style={{
+            background: decisionStyle.bg,
+            border: `1px solid ${decisionStyle.border}`,
+            borderRadius: '10px', padding: '28px 32px', marginBottom: '20px',
+            boxShadow: decisionStyle.glow,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px',
+          }}>
             <div>
               <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: decisionStyle.color, fontWeight: '600', letterSpacing: '0.1em', marginBottom: '8px' }}>
                 TODAY'S DECISION
               </div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '28px', fontWeight: '700', color: decisionStyle.color, textShadow: `0 0 16px ${decisionStyle.color}80`, letterSpacing: '-0.02em' }}>
+              <div style={{
+                fontFamily: 'IBM Plex Mono, monospace', fontSize: '28px', fontWeight: '700',
+                color: decisionStyle.color, textShadow: `0 0 16px ${decisionStyle.color}80`,
+                letterSpacing: '-0.02em',
+              }}>
                 {session ? session.decisionReason : '— NO SESSION YET —'}
               </div>
               {!session && (
                 <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px' }}>
                   Set up today's session →{' '}
-                  <Link href="/session" style={{ color: 'var(--blue)' }}>Session Setup</Link>
+                  <a href="/session" style={{ color: 'var(--blue)' }}>Session Setup</a>
                 </div>
               )}
             </div>
-            <div style={{ width: '90px', height: '90px', borderRadius: '50%', border: `3px solid ${decisionStyle.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: 'var(--card)' }}>
+            <div style={{
+              width: '90px', height: '90px', borderRadius: '50%',
+              border: `3px solid ${decisionStyle.border}`,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, background: 'var(--card)',
+            }}>
               <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '30px', fontWeight: '700', color: decisionStyle.color, lineHeight: 1 }}>{score}</div>
               <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: '600', letterSpacing: '0.06em' }}>SCORE</div>
             </div>
@@ -111,7 +133,12 @@ export default function Dashboard() {
                 <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>NO TRADE &lt;65 · CAUTION 65–79 · TRADE ≥80</span>
               </div>
               <div style={{ background: 'var(--surface)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                <div style={{ width: `${score}%`, height: '100%', background: score >= 80 ? 'var(--green)' : score >= 65 ? 'var(--yellow)' : 'var(--red)', borderRadius: '4px', transition: 'width 0.5s ease', boxShadow: `0 0 8px ${score >= 80 ? 'rgba(0,230,118,0.6)' : score >= 65 ? 'rgba(255,179,0,0.6)' : 'rgba(255,61,61,0.6)'}` }} />
+                <div style={{
+                  width: `${score}%`, height: '100%',
+                  background: score >= 80 ? 'var(--green)' : score >= 65 ? 'var(--yellow)' : 'var(--red)',
+                  borderRadius: '4px', transition: 'width 0.5s ease',
+                  boxShadow: `0 0 8px ${score >= 80 ? 'rgba(0,230,118,0.6)' : score >= 65 ? 'rgba(255,179,0,0.6)' : 'rgba(255,61,61,0.6)'}`,
+                }} />
               </div>
             </div>
           )}
@@ -136,10 +163,10 @@ export default function Dashboard() {
 
           {/* Quick Actions */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-            <QuickLink href="/session" label="Setup Today's Session" icon="◈" desc="Auto-fill + calculate score" />
-            <QuickLink href="/risk"    label="Risk Calculator"        icon="⚡" desc="Size your position safely" />
-            <QuickLink href="/journal" label="Log a Trade"            icon="◎" desc="Journal your execution" />
-            <QuickLink href="/performance" label="View Stats"         icon="◆" desc="Track your edge" />
+            <QuickLink href="/session"     label="Setup Today's Session"  icon="◈" desc="Auto-fill + calculate score" />
+            <QuickLink href="/risk"        label="Risk Calculator"        icon="⚡" desc="Size your position safely" />
+            <QuickLink href="/journal"     label="Log a Trade"            icon="◎" desc="Journal your execution" />
+            <QuickLink href="/performance" label="View Stats"             icon="◆" desc="Track your edge" />
           </div>
         </>
       )}
@@ -159,12 +186,15 @@ function MetricCard({ label, value, color }: { label: string; value: string; col
 
 function QuickLink({ href, label, icon, desc }: { href: string; label: string; icon: string; desc: string }) {
   return (
-    <Link href={href} style={{ display: 'block', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', textDecoration: 'none', transition: 'all 0.15s' }}
+    <a href={href} style={{
+      display: 'block', background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: '8px', padding: '16px', textDecoration: 'none', transition: 'all 0.15s',
+    }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-bright)'; (e.currentTarget as HTMLElement).style.background = 'var(--card-hover)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'var(--card)' }}>
       <div style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--blue)' }}>{icon}</div>
       <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--text-primary)', marginBottom: '4px' }}>{label}</div>
       <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{desc}</div>
-    </Link>
+    </a>
   )
 }
