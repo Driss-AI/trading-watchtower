@@ -73,8 +73,6 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
   const [error, setError] = useState<string | null>(null)
 
   const evtSourceRef = useRef<EventSource | null>(null)
-  const latestQuoteRef = useRef<LiveQuote | null>(null)
-  const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // ─── POLL  slow tiles (VIX / QQQ) ───────────────────────────────────────────
@@ -121,19 +119,18 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
           const payload = JSON.parse(ev.data)
           if (payload?.type === 'quote' && payload?.data) {
             const q = payload.data
-            latestQuoteRef.current = {
-              price: Number(q.price || 0),
-              change: Number(q.change || 0),
-              changePct: Number(q.changePct || 0),
-              timestamp: String(q.timestamp || new Date().toISOString()),
+            const price = Number(q.price || 0)
+            // Never overwrite a real price with 0 — protects against empty
+            // ticks during SSE reconnect or gateway hiccups.
+            if (price > 0) {
+              setLiveNQ({
+                price,
+                change: Number(q.change || 0),
+                changePct: Number(q.changePct || 0),
+                timestamp: String(q.timestamp || new Date().toISOString()),
+              })
             }
-            if (!throttleRef.current) {
-              throttleRef.current = setTimeout(() => {
-                setLiveNQ(latestQuoteRef.current)
-                setLiveHealthy(true)
-                throttleRef.current = null
-              }, 1500)
-            }
+            setLiveHealthy(true)
           }
         } catch {
           // ignore parse errors
@@ -149,7 +146,6 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
     openStream()
     return () => {
       closed = true
-      if (throttleRef.current) clearTimeout(throttleRef.current)
       if (evtSourceRef.current) {
         evtSourceRef.current.close()
         evtSourceRef.current = null
