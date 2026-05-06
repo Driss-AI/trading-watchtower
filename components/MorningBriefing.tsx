@@ -81,7 +81,7 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
       const res = await fetch('/api/market-data', { cache: 'no-store' })
       if (!res.ok) throw new Error(`briefing fetch ${res.status}`)
       const json = (await res.json()) as MarketBriefing
-      setBriefing(json)
+      setBriefing((json as any).briefing || json)
       setError(null)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'fetch failed'
