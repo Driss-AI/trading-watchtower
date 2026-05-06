@@ -1,6 +1,5 @@
 'use client'
-import SessionTimerCompact, { SessionTimerNavbar } from './SessionTimer'
-import Link from 'next/link'
+import { SessionTimerNavbar } from './SessionTimer'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
@@ -32,7 +31,7 @@ export default function Navbar() {
         gap: '0',
       }}>
         {/* Logo */}
-        <Link href="/" style={{
+        <a href="/" style={{
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
@@ -60,14 +59,17 @@ export default function Navbar() {
           }}>
             NQ ORB
           </span>
-        </Link>
+        </a>
 
-        {/* Nav links */}
+        {/* Nav links — using <a> instead of Next.js <Link> to avoid
+            hydration mismatch from SSE streams breaking the client router.
+            Full-page nav is actually preferable for a trading dashboard:
+            guarantees clean state, no stale SSE connections on page switch. */}
         <div style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
           {NAV_ITEMS.map((item) => {
             const active = path === item.href
             return (
-              <Link
+              <a
                 key={item.href}
                 href={item.href}
                 style={{
@@ -89,7 +91,7 @@ export default function Navbar() {
               >
                 <span style={{ fontSize: '14px' }}>{item.icon}</span>
                 {item.label}
-              </Link>
+              </a>
             )
           })}
         </div>
@@ -102,4 +104,3 @@ export default function Navbar() {
     </nav>
   )
 }
-
