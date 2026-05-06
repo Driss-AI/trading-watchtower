@@ -207,7 +207,7 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
         {/* NQ tile — live */}
         <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60 relative">
           <div className="text-[10px] font-mono tracking-wide text-neutral-500">NQ (MNQ proxy)</div>
-          <div className="mt-1 text-xl font-semibold text-neutral-100 tabular-nums">
+          <div className="mt-1 text-xl font-semibold text-neutral-100 tabular-nums" style={{transition:"all 0.3s ease"}}>
             {nqPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className={`mt-1 text-xs font-mono tabular-nums ${nqUp ? 'text-green-400' : 'text-red-400'}`}>
