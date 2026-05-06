@@ -132,7 +132,7 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
                 setLiveNQ(latestQuoteRef.current)
                 setLiveHealthy(true)
                 throttleRef.current = null
-              }, 300)
+              }, 1500)
             }
           }
         } catch {
