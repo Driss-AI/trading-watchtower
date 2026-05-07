@@ -1,16 +1,9 @@
 'use client'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
-// ─── ORB BREAKOUT ALERTS v2 ───────────────────────────────────────────────────
-// Self-contained: builds the Opening Range from the LIVE SSE stream.
-// No dependency on the bars/history API.
-//
-// Flow:
-//   1. Before 9:30 ET → hidden
-//   2. 9:30–10:00 ET → "OR FORMING" — tracks high/low from every tick
-//   3. At 10:00 ET → locks OR High/Low, saves to session via API
-//   4. After 10:00 → monitors for breakout, fires alert + sound
-//   5. Breakout → glowing banner with direction, macro context, Risk Calc link
+// ─── ORB BREAKOUT ALERTS v3 ───────────────────────────────────────────────────
+// Builds OR from live SSE ticks. Persists to localStorage + DB so it survives
+// page refreshes. Auto-creates session if none exists.
 
 type BreakoutDirection = 'LONG' | 'SHORT' | null
 
@@ -27,15 +20,31 @@ function getNYTime() {
   const parts = nyStr.split(', ')[1]?.split(':') ?? []
   const h = parseInt(parts[0]) || 0
   const m = parseInt(parts[1]) || 0
-  const s = parseInt(parts[2]) || 0
-  return { h, m, s, totalMin: h * 60 + m, totalSec: h * 3600 + m * 60 + s }
+  return { h, m, totalMin: h * 60 + m }
+}
+
+function todayKey() {
+  return `orb_${new Date().toISOString().split('T')[0]}`
+}
+
+function saveToLocal(high: number, low: number) {
+  try { localStorage.setItem(todayKey(), JSON.stringify({ high, low, ts: Date.now() })) } catch {}
+}
+
+function loadFromLocal(): { high: number; low: number } | null {
+  try {
+    const raw = localStorage.getItem(todayKey())
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (data.high > 0 && data.low > 0) return data
+  } catch {}
+  return null
 }
 
 export default function ORBAlerts() {
   const [orHigh, setOrHigh] = useState<number | null>(null)
   const [orLow, setOrLow] = useState<number | null>(null)
   const [orLocked, setOrLocked] = useState(false)
-  const [orSaved, setOrSaved] = useState(false)
   const [livePrice, setLivePrice] = useState<number | null>(null)
   const [streaming, setStreaming] = useState(false)
   const [breakout, setBreakout] = useState<BreakoutDirection>(null)
@@ -48,9 +57,10 @@ export default function ORBAlerts() {
   const orHighRef = useRef<number | null>(null)
   const orLowRef = useRef<number | null>(null)
 
-  // Load saved OR from session on mount
+  // ─── LOAD OR: try DB first, then localStorage ──────────────────────────
   useEffect(() => {
-    async function loadSession() {
+    async function loadOR() {
+      // Try DB
       try {
         const today = new Date().toISOString().split('T')[0]
         const res = await fetch(`/api/sessions?date=${today}`, { cache: 'no-store' })
@@ -61,14 +71,30 @@ export default function ORBAlerts() {
           orHighRef.current = data.session.orHigh
           orLowRef.current = data.session.orLow
           setOrLocked(true)
-          setOrSaved(true)
+          return
         }
       } catch {}
+
+      // Fallback: localStorage
+      const local = loadFromLocal()
+      if (local) {
+        setOrHigh(local.high)
+        setOrLow(local.low)
+        orHighRef.current = local.high
+        orLowRef.current = local.low
+        // If past OR window, lock it
+        const ny = getNYTime()
+        if (ny.totalMin >= 600) {
+          setOrLocked(true)
+          // Also try to save to DB now
+          saveORtoDB(local.high, local.low)
+        }
+      }
     }
-    loadSession()
+    loadOR()
   }, [])
 
-  // Load macro bias
+  // ─── LOAD MACRO BIAS ───────────────────────────────────────────────────
   useEffect(() => {
     async function loadMacro() {
       try {
@@ -91,7 +117,7 @@ export default function ORBAlerts() {
     return () => clearInterval(t)
   }, [])
 
-  // Update phase every second
+  // ─── PHASE TRACKER ─────────────────────────────────────────────────────
   useEffect(() => {
     function updatePhase() {
       const ny = getNYTime()
@@ -105,17 +131,18 @@ export default function ORBAlerts() {
     return () => clearInterval(t)
   }, [])
 
-  // Lock OR when phase transitions from forming → monitoring
+  // ─── LOCK OR at 10:00 ─────────────────────────────────────────────────
   useEffect(() => {
     if (phase === 'monitoring' && !orLocked && orHighRef.current && orLowRef.current) {
       setOrHigh(orHighRef.current)
       setOrLow(orLowRef.current)
       setOrLocked(true)
-      saveOR(orHighRef.current, orLowRef.current)
+      saveToLocal(orHighRef.current, orLowRef.current)
+      saveORtoDB(orHighRef.current, orLowRef.current)
     }
   }, [phase, orLocked])
 
-  // SSE stream
+  // ─── SSE STREAM ────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     const es = new EventSource('/api/topstepx/stream?hub=market&symbol=MNQ')
@@ -131,13 +158,16 @@ export default function ORBAlerts() {
           // During OR forming, track high/low
           const ny = getNYTime()
           if (ny.totalMin >= 570 && ny.totalMin < 600) {
+            let changed = false
             if (orHighRef.current === null || price > orHighRef.current) {
-              orHighRef.current = price
-              setOrHigh(price)
+              orHighRef.current = price; setOrHigh(price); changed = true
             }
             if (orLowRef.current === null || price < orLowRef.current) {
-              orLowRef.current = price
-              setOrLow(price)
+              orLowRef.current = price; setOrLow(price); changed = true
+            }
+            // Save to localStorage every update so it survives refresh
+            if (changed && orHighRef.current && orLowRef.current) {
+              saveToLocal(orHighRef.current, orLowRef.current)
             }
           }
         }
@@ -146,7 +176,7 @@ export default function ORBAlerts() {
     return () => { cancelled = true; es.close() }
   }, [])
 
-  // Breakout detection
+  // ─── BREAKOUT DETECTION ────────────────────────────────────────────────
   useEffect(() => {
     if (!livePrice || !orLocked || !orHigh || !orLow) return
     if (breakoutFiredRef.current) return
@@ -169,28 +199,36 @@ export default function ORBAlerts() {
     }
   }, [livePrice, orLocked, orHigh, orLow, phase])
 
-  async function saveOR(high: number, low: number) {
+  // ─── SAVE OR TO DB (creates session if needed) ─────────────────────────
+  async function saveORtoDB(high: number, low: number) {
     try {
       const today = new Date().toISOString().split('T')[0]
       const checkRes = await fetch(`/api/sessions?date=${today}`, { cache: 'no-store' })
       const { session } = await checkRes.json()
-      if (session) {
-        await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            date: today, market: session.market || 'MNQ',
-            orHigh: high, orLow: low, orSize: parseFloat((high - low).toFixed(2)),
-            directionBias: session.directionBias || 'neutral',
-            tradeDirection: session.tradeDirection || 'LONG',
-            hasHighImpactNews: session.hasHighImpactNews ?? false,
-            vixLevel: session.vixLevel, vixExtreme: session.vixExtreme ?? false,
-            qqpAligned: session.qqpAligned ?? false, cleanRoomToTarget: session.cleanRoomToTarget ?? true,
-            us10yAgainst: session.us10yAgainst ?? false, dxyAgainst: session.dxyAgainst ?? false,
-          }),
-        })
+
+      const payload: Record<string, any> = {
+        date: today,
+        market: session?.market || 'MNQ',
+        orHigh: high,
+        orLow: low,
+        orSize: parseFloat((high - low).toFixed(2)),
+        directionBias: session?.directionBias || 'neutral',
+        tradeDirection: session?.tradeDirection || 'LONG',
+        hasHighImpactNews: session?.hasHighImpactNews ?? false,
+        vixLevel: session?.vixLevel ?? 0,
+        vixExtreme: session?.vixExtreme ?? false,
+        qqpAligned: session?.qqpAligned ?? true,
+        cleanRoomToTarget: session?.cleanRoomToTarget ?? true,
+        us10yAgainst: session?.us10yAgainst ?? false,
+        dxyAgainst: session?.dxyAgainst ?? false,
       }
-      setOrSaved(true)
+
+      // POST creates or updates the session
+      await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
     } catch {}
   }
 
@@ -210,10 +248,13 @@ export default function ORBAlerts() {
     } catch {}
   }
 
+  // ─── COMPUTED ──────────────────────────────────────────────────────────
   const orSize = orHigh && orLow ? orHigh - orLow : null
   const distToHigh = livePrice && orHigh ? (orHigh - livePrice) : null
   const distToLow = livePrice && orLow ? (livePrice - orLow) : null
   const breakoutAligned = breakout === 'LONG' ? macroBias?.preferLong : breakout === 'SHORT' ? macroBias?.preferShort : null
+
+  // ─── RENDER ────────────────────────────────────────────────────────────
 
   if (phase === 'pre') return null
 
@@ -275,8 +316,7 @@ export default function ORBAlerts() {
             <div style={{ flex: 1, height: '4px', background: 'var(--surface)', borderRadius: '2px', position: 'relative', overflow: 'visible' }}>
               <div style={{ position: 'absolute', left: '10%', right: '10%', height: '100%', background: 'var(--yellow)', opacity: 0.3, borderRadius: '2px' }} />
               {livePrice && (() => {
-                const range = orHigh - orLow || 1
-                const buffer = range * 0.3
+                const range = orHigh - orLow || 1; const buffer = range * 0.3
                 const min = orLow - buffer; const max = orHigh + buffer
                 const pct = Math.max(0, Math.min(100, ((livePrice - min) / (max - min)) * 100))
                 return <div style={{ position: 'absolute', left: `${pct}%`, top: '-3px', width: '10px', height: '10px', borderRadius: '50%', background: 'var(--yellow)', transform: 'translateX(-5px)', boxShadow: '0 0 6px rgba(0,0,0,0.3)' }} />
@@ -288,7 +328,7 @@ export default function ORBAlerts() {
     )
   }
 
-  // MONITORING
+  // MONITORING — with OR data
   if (phase === 'monitoring' && orLocked && orHigh && orLow && !breakout) {
     const closerToHigh = distToHigh !== null && distToLow !== null && Math.abs(distToHigh) < Math.abs(distToLow)
     return (
@@ -331,12 +371,12 @@ export default function ORBAlerts() {
     )
   }
 
-  // NO OR DATA
-  if (phase === 'monitoring' && !orLocked) {
+  // NO OR DATA — tell user
+  if ((phase === 'monitoring' || phase === 'closed') && !orLocked) {
     return (
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
         <span style={{ color: 'var(--text-dim)' }}>◈</span>
-        <span style={{ color: 'var(--text-secondary)' }}>ORB Alerts: No OR captured — </span>
+        <span style={{ color: 'var(--text-secondary)' }}>ORB: No OR captured today — </span>
         <a href="/session" style={{ color: 'var(--blue)', textDecoration: 'none', fontWeight: '600' }}>Enter OR manually →</a>
       </div>
     )
