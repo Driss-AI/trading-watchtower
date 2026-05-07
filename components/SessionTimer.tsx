@@ -28,7 +28,7 @@ function computeState(): TimerState {
   const totalSecs = nyNow.getHours() * 3600 + nyNow.getMinutes() * 60 + nyNow.getSeconds()
   const OPEN = 9 * 3600 + 30 * 60
   const MID = 10 * 3600
-  const CLOSE = 10 * 3600 + 30 * 60
+  const CLOSE = 11 * 3600
   const WARN = 9 * 3600
   const isWeekday = day >= 1 && day <= 5
   const pad = (n: number) => ({ h: Math.floor(n / 3600), m: Math.floor((n % 3600) / 60), s: n % 60 })
@@ -68,7 +68,7 @@ function computeState(): TimerState {
     const t = pad(secs)
     const elapsed = totalSecs - MID
     const pct = (elapsed / (CLOSE - MID)) * 100
-    return { phase: 'post_orb', label: '🟢 LIVE — OR COMPLETE · TRADE WINDOW OPEN', sublabel: 'Session closes at 10:30 AM ET (7:30 PM Dubai)', hours: 0, minutes: t.m, seconds: t.s, color: 'var(--green)', bgColor: 'var(--green-bg)', borderColor: 'var(--green-border)', nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: pct }
+    return { phase: 'post_orb', label: '🟢 LIVE — OR COMPLETE · TRADE WINDOW OPEN', sublabel: 'Session closes at 11:00 PM ET (8:00 PM Dubai)', hours: 0, minutes: t.m, seconds: t.s, color: 'var(--green)', bgColor: 'var(--green-bg)', borderColor: 'var(--green-border)', nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: pct }
   }
 
   if (totalSecs >= WARN && totalSecs < OPEN) {
@@ -81,7 +81,7 @@ function computeState(): TimerState {
 
   const secs = OPEN - totalSecs
   const t = pad(secs)
-  return { phase: 'pre_session', label: 'NEXT SESSION', sublabel: 'NY Open 9:30 AM ET · Dubai 6:30 PM · 7:30 PM close', hours: t.h, minutes: t.m, seconds: t.s, color: 'var(--blue)', bgColor: 'var(--surface)', borderColor: 'var(--border)', nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: 0 }
+  return { phase: 'pre_session', label: 'NEXT SESSION', sublabel: 'NY Open 9:30 AM ET · Dubai 6:30 PM · 8:00 PM close', hours: t.h, minutes: t.m, seconds: t.s, color: 'var(--blue)', bgColor: 'var(--surface)', borderColor: 'var(--border)', nyTime, dubaiTime, dayLabel: dayNames[day], progressPct: 0 }
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -136,7 +136,7 @@ export default function SessionTimer() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
           <span style={{ color: s.phase === 'approaching' || isLive ? s.color : 'var(--text-dim)' }}>9:30 AM ET · 6:30 PM DXB</span>
           <span style={{ color: s.phase === 'post_orb' ? s.color : 'var(--text-dim)' }}>10:00 AM · 7:00 PM</span>
-          <span>10:30 AM · 7:30 PM</span>
+          <span>11:00 PM · 8:00 PM</span>
         </div>
         <div style={{ position: 'relative', height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '50%', background: s.phase === 'orb_window' ? 'var(--red)' : 'var(--border-bright)', opacity: s.phase === 'orb_window' ? 1 : 0.4, transition: 'background 0.3s' }} />
