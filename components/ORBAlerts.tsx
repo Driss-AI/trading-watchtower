@@ -123,7 +123,7 @@ export default function ORBAlerts() {
       const ny = getNYTime()
       if (ny.totalMin < 570) setPhase('pre')
       else if (ny.totalMin < 600) setPhase('forming')
-      else if (ny.totalMin < 630) setPhase('monitoring')
+      else if (ny.totalMin < 660) setPhase('monitoring')
       else setPhase('closed')
     }
     updatePhase()
