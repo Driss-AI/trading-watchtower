@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { POINT_VALUES } from '@/lib/scoring'
 
+
 // GET /api/trades — list trades (optionally filter by date)
 export async function GET(req: NextRequest) {
   try {
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+
 // POST /api/trades — log a new trade
 export async function POST(req: NextRequest) {
   try {
@@ -38,10 +40,30 @@ export async function POST(req: NextRequest) {
 
     const pointValue = POINT_VALUES[body.market ?? 'MNQ'] ?? 2
     const contracts = parseInt(body.contracts ?? '1')
-    const entry = parseFloat(body.entry)
-    const stop = parseFloat(body.stop)
+    const direction = body.direction  // Trust the user's direction choice
+
+    let entry = parseFloat(body.entry)
+    let stop = parseFloat(body.stop)
     const target = parseFloat(body.target)
-    const exit = body.exit ? parseFloat(body.exit) : null
+    let exit = body.exit ? parseFloat(body.exit) : null
+
+    // ── SMART PRICE FIX ────────────────────────────────────────────────────
+    // Users often enter prices in the wrong fields. Instead of guessing
+    // direction, we TRUST their direction choice and fix the prices:
+    //
+    //   LONG:  entry should be lower than exit  (buy low, sell high)
+    //   SHORT: entry should be higher than exit (sell high, buy low)
+    //
+    // If the prices are swapped, we swap them automatically.
+    if (exit !== null) {
+      if (direction === 'LONG' && entry > exit) {
+        // User put sell price in entry, buy price in exit — swap them
+        const tmp = entry; entry = exit; exit = tmp
+      } else if (direction === 'SHORT' && entry < exit) {
+        // User put buy price in entry, sell price in exit — swap them
+        const tmp = entry; entry = exit; exit = tmp
+      }
+    }
 
     const riskPts = Math.abs(entry - stop)
 
@@ -53,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     if (exit !== null) {
       resultPts =
-        body.direction === 'LONG' ? exit - entry : entry - exit
+        direction === 'LONG' ? exit - entry : entry - exit
       resultDollars = resultPts * pointValue * contracts
       resultR = resultPts / (riskPts || 1)
       status = resultDollars > 0 ? 'WIN' : resultDollars < 0 ? 'LOSS' : 'BE'
@@ -65,7 +87,7 @@ export async function POST(req: NextRequest) {
         date,
         time: body.time ?? new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         market: body.market ?? 'MNQ',
-        direction: body.direction,
+        direction,
         contracts,
         entry,
         stop,
