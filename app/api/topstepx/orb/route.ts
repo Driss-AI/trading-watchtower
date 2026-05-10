@@ -54,6 +54,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ orb })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: msg, orb: null }, { status: 500 })
+
+    // Log the full error server-side for debugging
+    console.error('[ORB] Error:', msg)
+
+    // Detect "market closed / no data" errors and return 200 with null ORB
+    // These are expected during weekends, holidays, and pre-market
+    const isNoData =
+      msg.includes('retrieveBars') ||
+      msg.includes('No bars') ||
+      msg.includes('error (1)') ||
+      msg.includes('null') ||
+      msg.includes('not configured')
+
+    if (isNoData) {
+      return NextResponse.json({
+        orb: null,
+        reason: 'market_closed',
+        message: 'ORB unavailable — market may be closed or pre-open',
+      })
+    }
+
+    // Unexpected error — return 500 but sanitize the message
+    return NextResponse.json({
+      error: 'ORB calculation failed — check server logs',
+      orb: null,
+    }, { status: 500 })
   }
 }
