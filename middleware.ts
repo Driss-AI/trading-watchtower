@@ -54,6 +54,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Protect everything except Next.js internals and static files
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Protect everything except Next.js internals, static files, and health endpoint
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/health).*)'],
 }
