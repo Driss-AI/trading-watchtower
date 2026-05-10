@@ -90,7 +90,7 @@ export default function SessionPage() {
           SESSION SETUP
         </h1>
         <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
-          Enter conditions before the NY open · 9:30 AM EST (6:30 PM Dubai)
+          Enter conditions before the NY open · 9:30 AM ET (6:30 PM Dubai)
         </p>
       </div>
 
