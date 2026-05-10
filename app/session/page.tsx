@@ -50,6 +50,7 @@ export default function SessionPage() {
       const res = await fetch(`/api/topstepx/orb?symbol=${form.market === 'MNQ' ? 'MNQ' : 'NQ'}&live=true`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
+      if (!data.orb) throw new Error(data.message || 'ORB unavailable — market may be closed')
       const orb = data.orb
       setForm((f) => ({
         ...f,
