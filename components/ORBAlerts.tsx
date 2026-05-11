@@ -73,7 +73,7 @@ function getBarETHour(isoStr: string): { h: number; m: number } {
 
 function analyseBars(
   bars: Bar[],
-  direction: 'LONG' | 'SHORT',
+  direction: 'LONG' | 'SHORT' | null,
   orHigh: number,
   orLow: number
 ): Omit<CandleSignal, 'loading'> {
@@ -87,6 +87,10 @@ function analyseBars(
 
   const breakoutBar   = tradeBars[0] ?? sorted[sorted.length - 1]
   const followBar     = tradeBars[1] ?? null
+
+  // If direction not yet known (pre-breakout), infer from breakout bar close vs open
+  const resolvedDir: 'LONG' | 'SHORT' = direction ??
+    (breakoutBar && breakoutBar.c >= breakoutBar.o ? 'LONG' : 'SHORT')
 
   // Body strength: how much of the bar range is solid body (vs wicks)
   const barRange   = breakoutBar ? (breakoutBar.h - breakoutBar.l) : 0
@@ -103,17 +107,17 @@ function analyseBars(
   let sweepSide: 'high' | 'low' | null = null
 
   for (const bar of orBars) {
-    if (direction === 'SHORT' && bar.h > orHigh + SWEEP_PTS && bar.c < orHigh) {
+    if (resolvedDir === 'SHORT' && bar.h > orHigh + SWEEP_PTS && bar.c < orHigh) {
       orSwept = true; sweepSide = 'high'
     }
-    if (direction === 'LONG'  && bar.l < orLow  - SWEEP_PTS && bar.c > orLow) {
+    if (resolvedDir === 'LONG'  && bar.l < orLow  - SWEEP_PTS && bar.c > orLow) {
       orSwept = true; sweepSide = 'low'
     }
   }
 
   // Follow-through: next 5-min bar after breakout — did it keep going?
   const followThrough: boolean | null = followBar
-    ? (direction === 'LONG' ? followBar.c > followBar.o : followBar.c < followBar.o)
+    ? (resolvedDir === 'LONG' ? followBar.c > followBar.o : followBar.c < followBar.o)
     : null
 
   // Verdict
@@ -127,11 +131,11 @@ function analyseBars(
     verdictSub  = 'OR sweep + clean reversal = institutional move.'
   } else if (bodyRating === 'strong' && !orSwept) {
     verdict     = 'go'
-    verdictText = 'Take the trade'
-    verdictSub  = 'Clean institutional break. Low trap risk.'
+    verdictText = direction ? 'Take the trade' : 'Strong bar — watch for breakout'
+    verdictSub  = direction ? 'Clean institutional break. Low trap risk.' : 'No breakout yet but bar structure is clean.'
   } else if (bodyRating === 'weak' && !orSwept) {
     verdict     = 'wait'
-    verdictText = 'Wait for next bar'
+    verdictText = direction ? 'Wait for next bar' : 'Weak bar — avoid chasing'
     verdictSub  = 'Wick rejection — possible liquidity trap.'
   } else if (bodyRating === 'moderate') {
     verdict     = 'caution'
@@ -279,7 +283,7 @@ export default function ORBAlerts() {
   }, [])
 
   // ─── CANDLE SIGNAL FETCH ─────────────────────────────────────────────────
-  const fetchCandleSignal = useCallback(async (dir: 'LONG' | 'SHORT', high: number, low: number) => {
+  const fetchCandleSignal = useCallback(async (dir: 'LONG' | 'SHORT' | null, high: number, low: number) => {
     if (signalFetchedRef.current) return
     signalFetchedRef.current = true
     setCandleSignal({ loading: true, bodyStrength: 0, bodyRating: 'weak', orSwept: false, sweepSide: null, followThrough: null, verdict: 'caution', verdictText: '', verdictSub: '' })
@@ -307,6 +311,13 @@ export default function ORBAlerts() {
       setCandleSignal(prev => prev ? { ...prev, loading: false } : null)
     }
   }, [])
+
+  // ─── AUTO-FETCH CANDLE ON MONITORING START ───────────────────────────────
+  useEffect(() => {
+    if (phase === 'monitoring' && orLocked && orHigh && orLow) {
+      fetchCandleSignal(null, orHigh, orLow)
+    }
+  }, [phase, orLocked, orHigh, orLow, fetchCandleSignal])
 
   // ─── BREAKOUT DETECTION ──────────────────────────────────────────────────
   useEffect(() => {
@@ -388,9 +399,9 @@ export default function ORBAlerts() {
     : breakout === 'SHORT' ? macroBias?.preferShort : null
 
   // ─── CANDLE SIGNAL CARD ───────────────────────────────────────────────────
-  function CandleCard({ dir }: { dir: 'LONG' | 'SHORT' }) {
+  function CandleCard({ dir, preBreakout = false }: { dir: 'LONG' | 'SHORT'; preBreakout?: boolean }) {
     const color  = dir === 'LONG' ? 'var(--green)' : 'var(--red)'
-    const border = dir === 'LONG' ? 'var(--green-border)' : 'var(--red-border)'
+    const border = preBreakout ? 'var(--border)' : dir === 'LONG' ? 'var(--green-border)' : 'var(--red-border)'
 
     if (!candleSignal) return null
 
@@ -417,7 +428,7 @@ export default function ORBAlerts() {
     return (
       <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: `1px solid ${border}` }}>
         <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '10px' }}>
-          CANDLE SIGNAL
+          {preBreakout ? 'CANDLE READ — NO BREAKOUT YET' : 'CANDLE SIGNAL'}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '10px' }}>
@@ -582,6 +593,7 @@ export default function ORBAlerts() {
             </div>
           </div>
         )}
+        <CandleCard dir={candleSignal && !candleSignal.loading && candleSignal.orSwept ? (candleSignal.sweepSide === 'high' ? 'SHORT' : 'LONG') : 'LONG'} preBreakout />
       </div>
     )
   }
