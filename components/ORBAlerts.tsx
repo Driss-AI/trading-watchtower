@@ -22,7 +22,7 @@ interface Bar { t: string; o: number; h: number; l: number; c: number; v: number
 
 interface CandleSignal {
   loading:        boolean
-  bodyStrength:   number
+  bodyStrength:   number   // -1 = no data
   bodyRating:     'strong' | 'moderate' | 'weak'
   orSwept:        boolean
   sweepSide:      'high' | 'low' | null
@@ -141,6 +141,13 @@ function analyseBars(
   }
 
   return { bodyStrength, bodyRating, orSwept, sweepSide, followThrough, verdict, verdictText, verdictSub }
+}
+
+const NO_DATA_SIGNAL: Omit<CandleSignal, 'loading'> = {
+  bodyStrength: -1, bodyRating: 'weak', orSwept: false, sweepSide: null,
+  followThrough: null, verdict: 'caution',
+  verdictText: 'No bar data available',
+  verdictSub: 'TopStepX returned no bars for today\'s OR window.',
 }
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
@@ -279,7 +286,7 @@ export default function ORBAlerts() {
   const fetchCandleSignal = useCallback(async (dir: 'LONG' | 'SHORT' | null, high: number, low: number) => {
     if (signalFetchedRef.current) return
     signalFetchedRef.current = true
-    setCandleSignal({ loading: true, bodyStrength: 0, bodyRating: 'weak', orSwept: false, sweepSide: null, followThrough: null, verdict: 'caution', verdictText: '', verdictSub: '' })
+    setCandleSignal({ loading: true, ...NO_DATA_SIGNAL })
     try {
       const res = await fetch('/api/topstepx/bars?symbol=MNQ&period=orwindow', { cache: 'no-store' })
       const { bars } = await res.json()
@@ -297,10 +304,10 @@ export default function ORBAlerts() {
           } catch {}
         }, 5 * 60 * 1000)
       } else {
-        setCandleSignal(prev => prev ? { ...prev, loading: false } : null)
+        setCandleSignal({ loading: false, ...NO_DATA_SIGNAL })
       }
     } catch {
-      setCandleSignal(prev => prev ? { ...prev, loading: false } : null)
+      setCandleSignal({ loading: false, ...NO_DATA_SIGNAL })
     }
   }, [])
 
@@ -390,7 +397,6 @@ export default function ORBAlerts() {
     ? macroBias?.preferLong
     : breakout === 'SHORT' ? macroBias?.preferShort : null
 
-  // Infer display direction for pre-breakout candle card
   const inferredDir: 'LONG' | 'SHORT' = candleSignal && !candleSignal.loading && candleSignal.orSwept
     ? (candleSignal.sweepSide === 'high' ? 'SHORT' : 'LONG')
     : 'LONG'
@@ -413,6 +419,15 @@ export default function ORBAlerts() {
 
     const { bodyStrength, bodyRating, orSwept, sweepSide, followThrough, verdict, verdictText, verdictSub } = candleSignal
 
+    // No bar data returned from API
+    if (bodyStrength === -1) {
+      return (
+        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: `1px solid ${border}`, fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)' }}>
+          CANDLE READ · No bar data yet — available after 9:30 AM ET
+        </div>
+      )
+    }
+
     const bodyColor    = bodyRating === 'strong' ? 'var(--green)' : bodyRating === 'moderate' ? 'var(--yellow)' : 'var(--red)'
     const sweepColor   = orSwept ? 'var(--green)' : 'var(--text-secondary)'
     const followColor  = followThrough === true ? 'var(--green)' : followThrough === false ? 'var(--red)' : 'var(--text-dim)'
@@ -433,13 +448,11 @@ export default function ORBAlerts() {
             <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: bodyColor }}>{bodyStrength.toFixed(0)}%</div>
             <div style={{ fontSize: '10px', color: bodyColor, opacity: 0.8, textTransform: 'capitalize' }}>{bodyRating}</div>
           </div>
-
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>OR sweep</div>
             <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: sweepColor }}>{orSwept ? 'Yes' : 'No'}</div>
             <div style={{ fontSize: '10px', color: sweepColor, opacity: 0.8 }}>{orSwept ? (sweepSide === 'high' ? 'High swept' : 'Low swept') : 'Clean OR'}</div>
           </div>
-
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>Follow-through</div>
             <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: followColor }}>{followThrough === null ? '—' : followThrough ? 'Yes' : 'No'}</div>
@@ -471,7 +484,6 @@ export default function ORBAlerts() {
       <div style={{ background: isLong ? 'var(--green-bg)' : 'var(--red-bg)', border: `2px solid ${color}`, borderRadius: '12px', padding: '24px 28px', marginBottom: '20px', boxShadow: `0 0 40px ${isLong ? 'rgba(0,230,118,0.4)' : 'rgba(255,61,61,0.4)'}`, animation: 'orbPulse 2s ease-in-out infinite', position: 'relative' }}>
         <style>{`@keyframes orbPulse { 0%,100% { box-shadow: 0 0 20px ${isLong ? 'rgba(0,230,118,0.3)' : 'rgba(255,61,61,0.3)'}; } 50% { box-shadow: 0 0 50px ${isLong ? 'rgba(0,230,118,0.6)' : 'rgba(255,61,61,0.6)'}; } } @keyframes spin { to { transform: rotate(360deg) } }`}</style>
         <button onClick={() => setDismissed(true)} style={{ position: 'absolute', top: '12px', right: '16px', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '18px' }}>✕</button>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', flexShrink: 0, boxShadow: `0 0 20px ${isLong ? 'rgba(0,230,118,0.6)' : 'rgba(255,61,61,0.6)'}` }}>{isLong ? '↑' : '↓'}</div>
           <div style={{ flex: 1 }}>
@@ -493,9 +505,7 @@ export default function ORBAlerts() {
             <div style={{ color: 'var(--red)' }}>OR Low: {orLow?.toFixed(2)}</div>
           </div>
         </div>
-
         <CandleCard dir={breakout} />
-
         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: `1px solid ${border}`, display: 'flex', gap: '12px', alignItems: 'center' }}>
           <a href="/risk" style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '600', color, textDecoration: 'none', padding: '8px 16px', border: `1px solid ${border}`, borderRadius: '6px' }}>⚡ Open Risk Calculator</a>
           <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>Entry = live price · Stop = {isLong ? 'OR Low' : 'OR High'} · Target = 2:1</span>
@@ -623,7 +633,7 @@ export default function ORBAlerts() {
       <div style={{ background: 'var(--card)', border: `1px solid ${isLong ? 'var(--green-border)' : 'var(--red-border)'}`, borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
         <span style={{ color: isLong ? 'var(--green)' : 'var(--red)', fontWeight: '700' }}>{isLong ? '▲' : '▼'} {breakout} BREAKOUT</span>
         <span style={{ color: 'var(--text-dim)' }}>at {breakoutTime} ET</span>
-        {candleSignal && !candleSignal.loading && (
+        {candleSignal && !candleSignal.loading && candleSignal.bodyStrength !== -1 && (
           <>
             <span style={{ color: 'var(--text-dim)' }}>·</span>
             <span style={{ color: candleSignal.verdict === 'go' ? 'var(--green)' : candleSignal.verdict === 'caution' ? 'var(--yellow)' : 'var(--red)', fontWeight: '600', fontSize: '11px' }}>
