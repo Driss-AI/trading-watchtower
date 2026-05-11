@@ -7,6 +7,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 //   - OR sweep detection (price faked one side before real move)
 //   - Follow-through bar read
 //   - Single-sentence verdict: Take it / Wait / High conviction
+//   - Always visible: shows in monitoring, closed, and any phase with OR data
 
 type BreakoutDirection = 'LONG' | 'SHORT' | null
 
@@ -81,27 +82,21 @@ function analyseBars(
     (a, b) => new Date(a.t).getTime() - new Date(b.t).getTime()
   )
 
-  // Separate OR bars (9:30-9:55 ET) from trade-window bars (10:00+ ET)
   const orBars    = sorted.filter(b => { const { h, m } = getBarETHour(b.t); return h === 9 && m >= 30 })
   const tradeBars = sorted.filter(b => getBarETHour(b.t).h >= 10)
 
-  const breakoutBar   = tradeBars[0] ?? sorted[sorted.length - 1]
-  const followBar     = tradeBars[1] ?? null
+  const breakoutBar = tradeBars[0] ?? sorted[sorted.length - 1]
+  const followBar   = tradeBars[1] ?? null
 
-  // If direction not yet known (pre-breakout), infer from breakout bar close vs open
   const resolvedDir: 'LONG' | 'SHORT' = direction ??
     (breakoutBar && breakoutBar.c >= breakoutBar.o ? 'LONG' : 'SHORT')
 
-  // Body strength: how much of the bar range is solid body (vs wicks)
-  const barRange   = breakoutBar ? (breakoutBar.h - breakoutBar.l) : 0
-  const barBody    = breakoutBar ? Math.abs(breakoutBar.c - breakoutBar.o) : 0
+  const barRange     = breakoutBar ? (breakoutBar.h - breakoutBar.l) : 0
+  const barBody      = breakoutBar ? Math.abs(breakoutBar.c - breakoutBar.o) : 0
   const bodyStrength = barRange > 0 ? (barBody / barRange) * 100 : 0
   const bodyRating: 'strong' | 'moderate' | 'weak' =
     bodyStrength >= 70 ? 'strong' : bodyStrength >= 40 ? 'moderate' : 'weak'
 
-  // OR sweep: did any OR candle spike beyond the OR boundary then close back inside?
-  // SHORT breakout: sweep = OR bar spiked above orHigh (flushed longs) then reversed down
-  // LONG breakout:  sweep = OR bar dipped below orLow (flushed shorts) then reversed up
   const SWEEP_PTS = 1.5
   let orSwept   = false
   let sweepSide: 'high' | 'low' | null = null
@@ -115,12 +110,10 @@ function analyseBars(
     }
   }
 
-  // Follow-through: next 5-min bar after breakout — did it keep going?
   const followThrough: boolean | null = followBar
     ? (resolvedDir === 'LONG' ? followBar.c > followBar.o : followBar.c < followBar.o)
     : null
 
-  // Verdict
   let verdict: 'go' | 'caution' | 'wait'
   let verdictText: string
   let verdictSub: string
@@ -170,7 +163,7 @@ export default function ORBAlerts() {
   const orLowRef         = useRef<number | null>(null)
   const signalFetchedRef = useRef(false)
 
-  // ─── LOAD OR: DB first, then localStorage ─────────────────────────────────
+  // ─── LOAD OR ──────────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadOR() {
       try {
@@ -212,9 +205,9 @@ export default function ORBAlerts() {
           const qqBullish = briefing.qqq?.direction === 'bullish'
           const vixLow    = briefing.vix?.level < 20
           setMacroBias({
-            label:      qqBullish && vixLow ? 'Bullish' : !qqBullish && briefing.vix?.level > 25 ? 'Bearish' : 'Neutral',
-            color:      qqBullish && vixLow ? 'var(--green)' : !qqBullish && briefing.vix?.level > 25 ? 'var(--red)' : 'var(--yellow)',
-            preferLong: qqBullish && vixLow,
+            label:       qqBullish && vixLow ? 'Bullish' : !qqBullish && briefing.vix?.level > 25 ? 'Bearish' : 'Neutral',
+            color:       qqBullish && vixLow ? 'var(--green)' : !qqBullish && briefing.vix?.level > 25 ? 'var(--red)' : 'var(--yellow)',
+            preferLong:  qqBullish && vixLow,
             preferShort: !qqBullish && briefing.vix?.level > 25,
           })
         }
@@ -293,11 +286,10 @@ export default function ORBAlerts() {
       if (bars && bars.length > 0) {
         const analysis = analyseBars(bars as Bar[], dir, high, low)
         setCandleSignal({ loading: false, ...analysis })
-        // Re-fetch in 5 min to pick up the follow-through bar
         setTimeout(async () => {
           try {
-            const r2  = await fetch('/api/topstepx/bars?symbol=MNQ&period=orwindow', { cache: 'no-store' })
-            const d2  = await r2.json()
+            const r2 = await fetch('/api/topstepx/bars?symbol=MNQ&period=orwindow', { cache: 'no-store' })
+            const d2 = await r2.json()
             if (d2.bars?.length) {
               const a2 = analyseBars(d2.bars as Bar[], dir, high, low)
               setCandleSignal({ loading: false, ...a2 })
@@ -312,12 +304,12 @@ export default function ORBAlerts() {
     }
   }, [])
 
-  // ─── AUTO-FETCH CANDLE ON MONITORING START ───────────────────────────────
+  // ─── AUTO-FETCH CANDLE — fires whenever OR is locked, any phase ──────────
   useEffect(() => {
-    if (phase === 'monitoring' && orLocked && orHigh && orLow) {
+    if (orLocked && orHigh && orLow) {
       fetchCandleSignal(null, orHigh, orLow)
     }
-  }, [phase, orLocked, orHigh, orLow, fetchCandleSignal])
+  }, [orLocked, orHigh, orLow, fetchCandleSignal])
 
   // ─── BREAKOUT DETECTION ──────────────────────────────────────────────────
   useEffect(() => {
@@ -391,16 +383,20 @@ export default function ORBAlerts() {
   }
 
   // ─── COMPUTED ────────────────────────────────────────────────────────────
-  const orSize        = orHigh && orLow ? orHigh - orLow : null
-  const distToHigh    = livePrice && orHigh ? (orHigh - livePrice) : null
-  const distToLow     = livePrice && orLow  ? (livePrice - orLow)  : null
+  const orSize          = orHigh && orLow ? orHigh - orLow : null
+  const distToHigh      = livePrice && orHigh ? (orHigh - livePrice) : null
+  const distToLow       = livePrice && orLow  ? (livePrice - orLow)  : null
   const breakoutAligned = breakout === 'LONG'
     ? macroBias?.preferLong
     : breakout === 'SHORT' ? macroBias?.preferShort : null
 
+  // Infer display direction for pre-breakout candle card
+  const inferredDir: 'LONG' | 'SHORT' = candleSignal && !candleSignal.loading && candleSignal.orSwept
+    ? (candleSignal.sweepSide === 'high' ? 'SHORT' : 'LONG')
+    : 'LONG'
+
   // ─── CANDLE SIGNAL CARD ───────────────────────────────────────────────────
   function CandleCard({ dir, preBreakout = false }: { dir: 'LONG' | 'SHORT'; preBreakout?: boolean }) {
-    const color  = dir === 'LONG' ? 'var(--green)' : 'var(--red)'
     const border = preBreakout ? 'var(--border)' : dir === 'LONG' ? 'var(--green-border)' : 'var(--red-border)'
 
     if (!candleSignal) return null
@@ -428,45 +424,33 @@ export default function ORBAlerts() {
     return (
       <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: `1px solid ${border}` }}>
         <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '10px' }}>
-          {preBreakout ? 'CANDLE READ — NO BREAKOUT YET' : 'CANDLE SIGNAL'}
+          {preBreakout ? 'CANDLE READ' : 'CANDLE SIGNAL'}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '10px' }}>
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>Body strength</div>
-            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: bodyColor }}>
-              {bodyStrength.toFixed(0)}%
-            </div>
+            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: bodyColor }}>{bodyStrength.toFixed(0)}%</div>
             <div style={{ fontSize: '10px', color: bodyColor, opacity: 0.8, textTransform: 'capitalize' }}>{bodyRating}</div>
           </div>
 
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>OR sweep</div>
-            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: sweepColor }}>
-              {orSwept ? 'Yes' : 'No'}
-            </div>
-            <div style={{ fontSize: '10px', color: sweepColor, opacity: 0.8 }}>
-              {orSwept ? (sweepSide === 'high' ? 'High swept' : 'Low swept') : 'Clean OR'}
-            </div>
+            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: sweepColor }}>{orSwept ? 'Yes' : 'No'}</div>
+            <div style={{ fontSize: '10px', color: sweepColor, opacity: 0.8 }}>{orSwept ? (sweepSide === 'high' ? 'High swept' : 'Low swept') : 'Clean OR'}</div>
           </div>
 
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>Follow-through</div>
-            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: followColor }}>
-              {followThrough === null ? '—' : followThrough ? 'Yes' : 'No'}
-            </div>
-            <div style={{ fontSize: '10px', color: followColor, opacity: 0.8 }}>
-              {followThrough === null ? 'Next bar pending' : followThrough ? 'Confirming' : 'Fading'}
-            </div>
+            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: followColor }}>{followThrough === null ? '—' : followThrough ? 'Yes' : 'No'}</div>
+            <div style={{ fontSize: '10px', color: followColor, opacity: 0.8 }}>{followThrough === null ? 'Next bar pending' : followThrough ? 'Confirming' : 'Fading'}</div>
           </div>
         </div>
 
         <div style={{ background: verdictBg, border: `1px solid ${verdictBorder}`, borderRadius: '6px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '16px', color: verdictColor, fontWeight: '700', flexShrink: 0 }}>{verdictIcon}</span>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: '700', color: verdictColor, fontFamily: 'IBM Plex Mono, monospace' }}>
-              {verdictText}
-            </div>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: verdictColor, fontFamily: 'IBM Plex Mono, monospace' }}>{verdictText}</div>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>{verdictSub}</div>
           </div>
         </div>
@@ -593,7 +577,7 @@ export default function ORBAlerts() {
             </div>
           </div>
         )}
-        <CandleCard dir={candleSignal && !candleSignal.loading && candleSignal.orSwept ? (candleSignal.sweepSide === 'high' ? 'SHORT' : 'LONG') : 'LONG'} preBreakout />
+        <CandleCard dir={inferredDir} preBreakout />
       </div>
     )
   }
@@ -605,6 +589,29 @@ export default function ORBAlerts() {
         <span style={{ color: 'var(--text-dim)' }}>◈</span>
         <span style={{ color: 'var(--text-secondary)' }}>ORB: No OR captured today — </span>
         <a href="/session" style={{ color: 'var(--blue)', textDecoration: 'none', fontWeight: '600' }}>Enter OR manually →</a>
+      </div>
+    )
+  }
+
+  // CLOSED — session over, candle summary for review
+  if (phase === 'closed' && orLocked && orHigh && orLow) {
+    return (
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+          <span style={{ color: 'var(--text-dim)' }}>◈</span>
+          <span style={{ color: 'var(--text-dim)', fontWeight: '600' }}>SESSION CLOSED</span>
+          <span style={{ color: 'var(--text-dim)' }}>·</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>OR {orHigh.toFixed(2)} / {orLow.toFixed(2)} · {orSize?.toFixed(0)} pts</span>
+          {breakout && (
+            <>
+              <span style={{ color: 'var(--text-dim)' }}>·</span>
+              <span style={{ color: breakout === 'LONG' ? 'var(--green)' : 'var(--red)', fontWeight: '600', fontSize: '11px' }}>
+                {breakout === 'LONG' ? '▲ LONG' : '▼ SHORT'} at {breakoutTime} ET
+              </span>
+            </>
+          )}
+        </div>
+        <CandleCard dir={breakout ?? inferredDir} preBreakout={!breakout} />
       </div>
     )
   }
