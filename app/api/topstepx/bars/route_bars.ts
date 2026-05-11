@@ -2,7 +2,8 @@
 // GET /api/topstepx/bars?symbol=MNQ&from=ISO&to=ISO&unit=2&unitNumber=5
 //
 // Fetches OHLCV bars from TopStepX History API.
-// period=orwindow  → auto-computes today 9:25 AM ET to now (covers OR + first trade bars)
+// period=orwindow → auto-computes today 9:25 AM ET to 11:30 AM ET
+// Uses live=false (sim subscription) for eval/combine accounts.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getTopstepXToken, getActiveMNQContractId, getActiveNQContractId } from '@/lib/topstepx'
@@ -11,23 +12,34 @@ export const dynamic = 'force-dynamic'
 
 // Returns an ISO string for a given hour:minute in America/New_York, today.
 function etToday(hour: number, minute: number): string {
-  const now = new Date()
-  // Get the current ET civil time so we can compute the UTC offset
+  const now   = new Date()
   const nowET = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
   const offsetMs = now.getTime() - nowET.getTime()
-  // Get today's date parts in ET
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(now)
   const p: Record<string, string> = {}
   for (const { type, value } of parts) p[type] = value
-  // Build a Date at that hour:minute in ET local time, then convert to UTC
   const targetET = new Date(
     parseInt(p.year), parseInt(p.month) - 1, parseInt(p.day),
     hour, minute, 0, 0
   )
   return new Date(targetET.getTime() + offsetMs).toISOString()
+}
+
+// Normalise bar fields — TopStepX returns {t,o,h,l,c,v} but guard against
+// alternative shapes some ProjectX white-labels use.
+function normaliseBar(raw: any): { t: string; o: number; h: number; l: number; c: number; v: number } | null {
+  if (!raw) return null
+  const t = raw.t ?? raw.timestamp ?? raw.time ?? raw.dateTime
+  const o = raw.o ?? raw.open
+  const h = raw.h ?? raw.high
+  const l = raw.l ?? raw.low
+  const c = raw.c ?? raw.close
+  const v = raw.v ?? raw.volume ?? 0
+  if (!t || o == null || h == null || l == null || c == null) return null
+  return { t: String(t), o: Number(o), h: Number(h), l: Number(l), c: Number(c), v: Number(v) }
 }
 
 export async function GET(req: NextRequest) {
@@ -37,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl
   const symbol     = (searchParams.get('symbol') ?? 'MNQ').toUpperCase()
-  const period     = searchParams.get('period')   // 'orwindow' shorthand
+  const period     = searchParams.get('period')
   const unit       = parseInt(searchParams.get('unit')       ?? '2')  // 2 = Minute
   const unitNumber = parseInt(searchParams.get('unitNumber') ?? '5')  // 5-min bars
 
@@ -45,9 +57,10 @@ export async function GET(req: NextRequest) {
   let to: string
 
   if (period === 'orwindow') {
-    // 9:25 AM ET → now: captures last OR bar + first 2 trade-window bars
+    // 9:25 AM → 11:30 AM ET: covers full OR + full trade window with buffer
+    // Fixed end time avoids sending afternoon bars that have nothing to do with ORB
     from = etToday(9, 25)
-    to   = new Date().toISOString()
+    to   = etToday(11, 30)
   } else {
     from = searchParams.get('from') ?? ''
     to   = searchParams.get('to')   ?? ''
@@ -65,7 +78,7 @@ export async function GET(req: NextRequest) {
       ? await getActiveNQContractId()
       : await getActiveMNQContractId()
 
-    // TopStepX ProjectX Gateway — History/retrieveBars
+    // live: false → uses sim/combine data subscription (correct for TopStep eval accounts)
     const res = await fetch('https://gateway.topstepx.com/api/History/retrieveBars', {
       method: 'POST',
       headers: {
@@ -74,13 +87,13 @@ export async function GET(req: NextRequest) {
       },
       body: JSON.stringify({
         contractId,
-        live: true,
+        live: false,
         startTime: from,
         endTime: to,
         unit,
         unitNumber,
         limit: 50,
-        includePartialBar: true,
+        includePartialBar: false,
       }),
     })
 
@@ -93,7 +106,10 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await res.json()
-    return NextResponse.json({ bars: data.bars ?? [], contractId, from, to })
+    const rawBars: any[] = data.bars ?? data.Bars ?? data.data ?? []
+    const bars = rawBars.map(normaliseBar).filter(Boolean)
+
+    return NextResponse.json({ bars, contractId, from, to, count: bars.length })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[TopStepX bars]', msg)
