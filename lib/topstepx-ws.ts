@@ -155,7 +155,7 @@ async function buildUserHub(): Promise<signalR.HubConnection> {
   return hub
 }
 
-export async function connectUserHub(): Promise<void> {
+export async function connectUserHub(): Promise<void> {   if (_userHub?.state === signalR.HubConnectionState.Connected) return   if (_connectingUser) return   _connectingUser = true   try {
   if (_userHub?.state === signalR.HubConnectionState.Connected) return
 
   if (_userHub) {
