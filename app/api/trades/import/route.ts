@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     let totalSkipped = 0
     const allRoundTrips: RoundTrip[] = []
 
-    for (const [date, dayFills] of fillsByDate) {
+    for (const [date, dayFills] of Array.from(fillsByDate)) {
       const sorted = [...dayFills].sort(
         (a, b) => new Date(a.creationTimestamp).getTime() - new Date(b.creationTimestamp).getTime()
       )
