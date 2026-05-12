@@ -158,7 +158,7 @@ export const PositionTypeEnum = { Undefined: 0, Long: 1, Short: 2 } as const
 export interface TSXBar { t: string; o: number; h: number; l: number; c: number; v: number }
 
 export async function getMinuteBars(
-  contractId: string, startTime: Date, endTime: Date, live = true, limit = 100
+  contractId: string, startTime: Date, endTime: Date, live = false, limit = 100
 ): Promise<TSXBar[]> {
   const data = await apiPost<{ bars: TSXBar[] }>('/api/History/retrieveBars', {
     contractId, live,
@@ -185,7 +185,7 @@ export interface ORBResult {
   contractId: string
 }
 
-export async function calculateOpeningRange(symbol: 'NQ' | 'MNQ' = 'NQ', live = true): Promise<ORBResult> {
+export async function calculateOpeningRange(symbol: 'NQ' | 'MNQ' = 'NQ', live = false): Promise<ORBResult> {
   const contractId = symbol === 'NQ' ? await getActiveNQContractId() : await getActiveMNQContractId()
 
   // Get ET offset dynamically
