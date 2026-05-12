@@ -99,8 +99,10 @@ model Trade {
 
   // Results
   resultPts     Float?   // exit - entry (for long), entry - exit (for short)
-  resultDollars Float?   // resultPts * pointValue * contracts
+  resultDollars Float?   // net P&L (after fees)
   resultR       Float?   // resultPts / riskPts
+  grossPnl      Float?   // gross P&L (before fees)
+  tradeFees     Float?   // commissions / fees
 
   // Quality
   setupScore    Int?
