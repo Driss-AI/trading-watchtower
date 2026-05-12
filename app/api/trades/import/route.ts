@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       const pointValue = POINT_VALUES[market] ?? 2
       const resultPts = rt.direction === 'LONG' ? rt.exit - rt.entry : rt.entry - rt.exit
       const resultDollars = resultPts * pointValue * rt.contracts
-      const resultR = null  // Can't calculate true R without a known stop loss
+      const resultR: number | null = null  // Can't calculate true R without a known stop loss
 
       const entryDate = new Date(rt.entryTime)
       const timeStr = entryDate.toLocaleTimeString('en-GB', {
