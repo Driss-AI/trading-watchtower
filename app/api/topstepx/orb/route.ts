@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const symbol = (searchParams.get('symbol') ?? 'NQ') as 'NQ' | 'MNQ'
-    const live = searchParams.get('live') !== 'false'
+    const live = searchParams.get('live') === 'true'
 
     const orb = await calculateOpeningRange(symbol, live)
 
