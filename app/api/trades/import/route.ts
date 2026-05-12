@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
           exit: rt.exit,
           resultPts: parseFloat(resultPts.toFixed(2)),
           resultDollars: parseFloat(resultDollars.toFixed(2)),
-          resultR: resultR !== null ? parseFloat(resultR.toFixed(2)) : null,
+          resultR: null,
           ruleFollowed: true,
           status: resultDollars > 0 ? 'WIN' : resultDollars < 0 ? 'LOSS' : 'BE',
           notes: `Auto-imported from TopStepX · Gross: $${rt.pnl.toFixed(2)} · Fees: $${rt.fees.toFixed(2)}`,
