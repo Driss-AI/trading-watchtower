@@ -7,6 +7,7 @@ import DrawdownMeter from '@/components/DrawdownMeter'
 import LivePosition from '@/components/LivePosition'
 import LiveStats from '@/components/LiveStats'
 import ORBAlerts from '@/components/ORBAlerts'
+import CandleReader from '@/components/CandleReader'
 
 interface Session {
   id: string; date: string; market: string; score: number; decision: string
@@ -77,6 +78,9 @@ export default function Dashboard() {
 
       {/* ORB Breakout Alerts — monitors live price vs Opening Range */}
       <ORBAlerts />
+
+      {/* Candle Pattern Reader — live pattern detection with ORB context */}
+      <CandleReader orHigh={session?.orHigh} orLow={session?.orLow} />
 
       {/* Live P&L + ORB — Topstep API */}
       <LiveStats />
