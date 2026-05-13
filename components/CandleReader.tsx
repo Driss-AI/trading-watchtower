@@ -286,7 +286,6 @@ function MiniCandleChart({
 
   return (
     <svg width={W} height={H} style={{ display: 'block', overflow: 'visible' }}>
-      {/* OR lines */}
       {orHigh && orHigh > 0 && (
         <>
           <line x1={padL} y1={toY(orHigh)} x2={W - padR} y2={toY(orHigh)}
@@ -304,7 +303,6 @@ function MiniCandleChart({
         </>
       )}
 
-      {/* Candles */}
       {all.map((c, i) => {
         const isLive = liveCandle && i === all.length - 1
         const cx    = padL + i * slotW + slotW / 2
@@ -316,16 +314,13 @@ function MiniCandleChart({
 
         return (
           <g key={i} opacity={isLive ? 0.75 : 1}>
-            {/* Wick */}
             <line x1={cx} y1={toY(c.high)} x2={cx} y2={toY(c.low)}
               stroke={color} strokeWidth="1.2" />
-            {/* Body */}
             <rect x={cx - bodyW / 2} y={bodyTop} width={bodyW} height={bodyH}
               fill={color} rx="1"
               fillOpacity={isLive ? 0.5 : 0.85}
               stroke={color} strokeWidth="0.5"
             />
-            {/* Live indicator ring */}
             {isLive && (
               <rect x={cx - bodyW / 2 - 2} y={bodyTop - 2}
                 width={bodyW + 4} height={bodyH + 4}
@@ -335,7 +330,6 @@ function MiniCandleChart({
         )
       })}
 
-      {/* LIVE label */}
       {liveCandle && (
         <text x={padL + (all.length - 0.5) * slotW} y={padT - 2}
           fill="#facc15" fontSize="7" textAnchor="middle" fontFamily="monospace">LIVE</text>
@@ -347,12 +341,7 @@ function MiniCandleChart({
 // ─── Strength Bar ─────────────────────────────────────────────────────────────
 
 function StrengthBar({ value, signal }: { value: number; signal: PatternResult['signal'] }) {
-  const colors = {
-    bullish: '#22c55e',
-    bearish: '#ef4444',
-    neutral: '#6b7280',
-    caution: '#f59e0b',
-  }
+  const colors = { bullish: '#22c55e', bearish: '#ef4444', neutral: '#6b7280', caution: '#f59e0b' }
   const color = colors[signal]
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -398,7 +387,6 @@ export default function CandleReader({
   const processTick = useCallback((price: number) => {
     if (price <= 0) return
 
-    // Price direction arrow
     if (prevPrice.current !== null) {
       setPriceDir(price > prevPrice.current ? 'up' : price < prevPrice.current ? 'down' : null)
     }
@@ -409,7 +397,6 @@ export default function CandleReader({
     const intervalStart = getIntervalStart(now)
 
     if (!currentCandle.current || currentCandle.current.time !== intervalStart) {
-      // Complete old candle
       if (currentCandle.current) {
         const completed = { ...currentCandle.current }
         setCandles(prev => {
@@ -418,7 +405,6 @@ export default function CandleReader({
           return next
         })
       }
-      // Start new candle
       currentCandle.current = {
         open: price, high: price, low: price, close: price,
         time: intervalStart, ticks: 1,
@@ -436,7 +422,6 @@ export default function CandleReader({
   }, [getIntervalStart])
 
   useEffect(() => {
-    // Reset when timeframe changes
     setCandles([])
     setLiveCandle(null)
     setPattern(null)
@@ -451,15 +436,18 @@ export default function CandleReader({
     es.onmessage = (e) => {
       try {
         const evt = JSON.parse(e.data)
-        if (evt.type === 'quote' && evt.data?.lastPrice > 0) processTick(evt.data.lastPrice)
         if (evt.type === 'connected')    setConnected(true)
         if (evt.type === 'disconnected') setConnected(false)
+        if (evt.type === 'quote' && evt.data) {
+          // WSQuote shape uses `price` — same field MorningBriefing reads
+          const price = Number(evt.data.price || evt.data.lastPrice || 0)
+          if (price > 0) processTick(price)
+        }
       } catch {}
     }
     return () => es.close()
   }, [processTick])
 
-  // Signal config
   const signalConfig = {
     bullish: { color: '#22c55e', bgColor: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.25)',   label: 'BULLISH' },
     bearish: { color: '#ef4444', bgColor: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)',   label: 'BEARISH' },
@@ -478,13 +466,10 @@ export default function CandleReader({
 
   return (
     <div className="card" style={{ marginBottom: '20px' }}>
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{
-            fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px',
-            fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '0.1em',
-          }}>CANDLE READER</span>
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '0.1em' }}>CANDLE READER</span>
           <span style={{
             fontSize: '9px', padding: '2px 6px', borderRadius: '4px', fontFamily: 'IBM Plex Mono, monospace',
             background: connected ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
@@ -493,95 +478,57 @@ export default function CandleReader({
             {connected ? '● LIVE' : '○ OFF'}
           </span>
           {orPos && (
-            <span style={{
-              fontSize: '9px', padding: '2px 6px', borderRadius: '4px',
-              fontFamily: 'IBM Plex Mono, monospace',
-              background: `${orPosColor}15`, color: orPosColor,
-            }}>{orPos}</span>
+            <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', fontFamily: 'IBM Plex Mono, monospace', background: `${orPosColor}15`, color: orPosColor }}>
+              {orPos}
+            </span>
           )}
         </div>
-
-        {/* Timeframe selector */}
         <div style={{ display: 'flex', gap: '4px' }}>
           {[1, 3, 5].map(tf => (
-            <button
-              key={tf}
-              onClick={() => setTimeframe(tf)}
-              style={{
-                fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px',
-                padding: '3px 8px', borderRadius: '4px', cursor: 'pointer',
-                border: '1px solid',
-                borderColor: timeframe === tf ? 'var(--border-bright)' : 'transparent',
-                background: timeframe === tf ? 'var(--surface)' : 'transparent',
-                color: timeframe === tf ? 'var(--text-primary)' : 'var(--text-dim)',
-                transition: 'all 0.15s',
-              }}
-            >{tf}M</button>
+            <button key={tf} onClick={() => setTimeframe(tf)} style={{
+              fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer',
+              border: '1px solid', borderColor: timeframe === tf ? 'var(--border-bright)' : 'transparent',
+              background: timeframe === tf ? 'var(--surface)' : 'transparent',
+              color: timeframe === tf ? 'var(--text-primary)' : 'var(--text-dim)', transition: 'all 0.15s',
+            }}>{tf}M</button>
           ))}
         </div>
       </div>
 
-      {/* ── Price ticker ── */}
+      {/* Price ticker */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '12px' }}>
         <span style={{
-          fontFamily: 'IBM Plex Mono, monospace', fontSize: '26px', fontWeight: '700',
+          fontFamily: 'IBM Plex Mono, monospace', fontSize: '26px', fontWeight: '700', letterSpacing: '-0.02em', transition: 'color 0.3s',
           color: priceDir === 'up' ? '#22c55e' : priceDir === 'down' ? '#ef4444' : 'var(--text-primary)',
-          letterSpacing: '-0.02em', transition: 'color 0.3s',
         }}>
           {lastPrice ? lastPrice.toFixed(2) : '—'}
         </span>
-        {priceDir && (
-          <span style={{ fontSize: '16px', color: priceDir === 'up' ? '#22c55e' : '#ef4444' }}>
-            {priceDir === 'up' ? '▲' : '▼'}
-          </span>
-        )}
+        {priceDir && <span style={{ fontSize: '16px', color: priceDir === 'up' ? '#22c55e' : '#ef4444' }}>{priceDir === 'up' ? '▲' : '▼'}</span>}
         {liveCandle && (
-          <span style={{
-            fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px',
-            color: priceChangeColor, marginLeft: '4px',
-          }}>
+          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: priceChangeColor, marginLeft: '4px' }}>
             {priceChangeInCandle >= 0 ? '+' : ''}{priceChangeInCandle.toFixed(1)} pts this candle
           </span>
         )}
       </div>
 
-      {/* ── Mini chart ── */}
-      <div style={{
-        background: 'var(--surface)', borderRadius: '8px',
-        padding: '10px 8px 6px', marginBottom: '14px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-      }}>
+      {/* Mini chart */}
+      <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '10px 8px 6px', marginBottom: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {(candles.length > 0 || liveCandle) ? (
-          <MiniCandleChart
-            candles={candles}
-            liveCandle={liveCandle}
-            orHigh={orHigh ?? null}
-            orLow={orLow ?? null}
-          />
+          <MiniCandleChart candles={candles} liveCandle={liveCandle} orHigh={orHigh ?? null} orLow={orLow ?? null} />
         ) : (
-          <div style={{
-            height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px',
-          }}>
+          <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px' }}>
             Waiting for first tick...
           </div>
         )}
-
-        {/* OHLC row */}
         {liveCandle && (
           <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
             {(['open', 'high', 'low', 'close'] as const).map(k => (
               <div key={k} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '8px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</div>
                 <div style={{
-                  fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px',
-                  color: k === 'close'
-                    ? (liveCandle.close >= liveCandle.open ? '#22c55e' : '#ef4444')
-                    : k === 'high' ? '#22c55e' : k === 'low' ? '#ef4444' : 'var(--text-secondary)',
-                  fontWeight: k === 'close' ? '700' : '400',
-                }}>
-                  {liveCandle[k].toFixed(0)}
-                </div>
+                  fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: k === 'close' ? '700' : '400',
+                  color: k === 'close' ? (liveCandle.close >= liveCandle.open ? '#22c55e' : '#ef4444') : k === 'high' ? '#22c55e' : k === 'low' ? '#ef4444' : 'var(--text-secondary)',
+                }}>{liveCandle[k].toFixed(0)}</div>
               </div>
             ))}
             <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', paddingLeft: '12px' }}>
@@ -592,98 +539,48 @@ export default function CandleReader({
         )}
       </div>
 
-      {/* ── Pattern card ── */}
+      {/* Pattern card */}
       {pattern ? (
-        <div style={{
-          background: sig.bgColor,
-          border: `1px solid ${sig.border}`,
-          borderRadius: '10px', padding: '14px 16px',
-        }}>
-          {/* Pattern header */}
+        <div style={{ background: sig.bgColor, border: `1px solid ${sig.border}`, borderRadius: '10px', padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '20px' }}>{pattern.emoji}</span>
               <div>
-                <div style={{
-                  fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px',
-                  fontWeight: '700', color: sig.color,
-                }}>{pattern.name}</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', marginTop: '1px' }}>
-                  Last {candles.length > 0 ? candles.length : '?'} completed candles analyzed
-                </div>
+                <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', fontWeight: '700', color: sig.color }}>{pattern.name}</div>
+                <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', marginTop: '1px' }}>Last {candles.length} completed candles analyzed</div>
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{
-                display: 'inline-block', padding: '3px 8px', borderRadius: '4px',
-                background: `${sig.color}20`, color: sig.color,
-                fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', fontWeight: '700',
-                letterSpacing: '0.08em',
-              }}>
-                {sig.label}
-              </div>
+            <div style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '4px', background: `${sig.color}20`, color: sig.color, fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', fontWeight: '700', letterSpacing: '0.08em' }}>
+              {sig.label}
             </div>
           </div>
-
-          {/* Strength bar */}
           <div style={{ marginBottom: '10px' }}>
             <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', marginBottom: '4px', letterSpacing: '0.06em' }}>SIGNAL STRENGTH</div>
             <StrengthBar value={pattern.strength} signal={pattern.signal} />
           </div>
-
-          {/* Meaning */}
-          <p style={{
-            fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.55',
-            margin: '0 0 10px', paddingBottom: '10px',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-          }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.55', margin: '0 0 10px', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             {pattern.meaning}
           </p>
-
-          {/* ORB Context */}
           <div style={{ marginBottom: '10px' }}>
             <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '5px' }}>ORB CONTEXT</div>
-            <p style={{ fontSize: '12px', color: sig.color, lineHeight: '1.55', margin: 0 }}>
-              {pattern.orbContext}
-            </p>
+            <p style={{ fontSize: '12px', color: sig.color, lineHeight: '1.55', margin: 0 }}>{pattern.orbContext}</p>
           </div>
-
-          {/* Action box */}
-          <div style={{
-            background: `${sig.color}12`,
-            border: `1px solid ${sig.color}30`,
-            borderRadius: '6px', padding: '8px 12px',
-            display: 'flex', alignItems: 'center', gap: '8px',
-          }}>
+          <div style={{ background: `${sig.color}12`, border: `1px solid ${sig.color}30`, borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '14px' }}>⚡</span>
-            <span style={{
-              fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px',
-              color: sig.color, fontWeight: '700',
-            }}>
-              {pattern.action}
-            </span>
+            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: sig.color, fontWeight: '700' }}>{pattern.action}</span>
           </div>
         </div>
       ) : (
-        <div style={{
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: '10px', padding: '24px',
-          textAlign: 'center',
-        }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '24px', textAlign: 'center' }}>
           <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', margin: 0 }}>
             {candles.length === 0 ? 'Accumulating candle data...' : 'Pattern forming — result on candle close...'}
           </p>
         </div>
       )}
 
-      {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
-        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>
-          {candles.length} completed · {timeframe}M candles · MNQ
-        </span>
-        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>
-          Patterns: last 3 candles analyzed
-        </span>
+        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>{candles.length} completed · {timeframe}M candles · MNQ</span>
+        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>Patterns: last 3 candles analyzed</span>
       </div>
     </div>
   )
