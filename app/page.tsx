@@ -58,7 +58,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Header */}
+      {/* ── Header ── */}
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
@@ -73,30 +73,46 @@ export default function Dashboard() {
         </a>
       </div>
 
-      {/* Morning Briefing Widget */}
+      {/* ── Row 1: Morning Briefing — full width ── */}
       <MorningBriefing />
 
-      {/* ORB Breakout Alerts — monitors live price vs Opening Range */}
+      {/* ── Row 2: ORB Alerts — full width ── */}
       <ORBAlerts />
 
-      {/* Candle Pattern Reader — live pattern detection with ORB context */}
-      <CandleReader orHigh={session?.orHigh} orLow={session?.orLow} />
+      {/* ── Row 3: Candle Reader (left) + Macro Sentiment (right) ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '3fr 2fr',
+        gap: '16px',
+        alignItems: 'start',
+        marginBottom: '0',
+      }}>
+        <CandleReader orHigh={session?.orHigh} orLow={session?.orLow} />
+        <MacroSentiment />
+      </div>
 
-      {/* Live P&L + ORB — Topstep API */}
-      <LiveStats />
+      {/* ── Row 4: Live Stats (left) + Economic Calendar (right) ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '16px',
+        alignItems: 'start',
+        marginTop: '0',
+      }}>
+        <LiveStats />
+        <EconomicCalendar />
+      </div>
 
-      <MacroSentiment />
-      <EconomicCalendar />
-
+      {/* ── Rest: full-width session info ── */}
       {loading ? (
-        <div style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px' }}>Loading...</div>
+        <div style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', marginTop: '20px' }}>Loading...</div>
       ) : (
         <>
           {/* Decision Banner */}
           <div style={{
             background: decisionStyle.bg,
             border: `1px solid ${decisionStyle.border}`,
-            borderRadius: '10px', padding: '28px 32px', marginBottom: '20px',
+            borderRadius: '10px', padding: '28px 32px', marginBottom: '20px', marginTop: '20px',
             boxShadow: decisionStyle.glow,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px',
           }}>
@@ -155,14 +171,12 @@ export default function Dashboard() {
             <MetricCard label="Losses Today" value={`${session?.losesCount ?? 0} / ${settings?.maxLosingTradesPerDay ?? 2}`} color={(session?.losesCount ?? 0) >= (settings?.maxLosingTradesPerDay ?? 2) ? 'red' : undefined} />
           </div>
 
-          {/* Live Position Banner */}
-          <div style={{ marginBottom: '12px' }}>
+          {/* Live Position + Drawdown side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
             <LivePosition />
-          </div>
-
-          {/* Live Trailing Drawdown Meter */}
-          <div className="card" style={{ marginBottom: '20px' }}>
-            <DrawdownMeter />
+            <div className="card">
+              <DrawdownMeter />
+            </div>
           </div>
 
           {/* Quick Actions */}
