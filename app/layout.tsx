@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import Navbar from '@/components/Navbar'
 import AuthProvider from '@/components/AuthProvider'
+import MarketAlerts from '@/components/MarketAlerts'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
@@ -24,6 +25,7 @@ export default async function RootLayout({
           {session ? (
             <>
               <Navbar />
+              <MarketAlerts />
               <main style={{
                 maxWidth: '1200px',
                 margin: '0 auto',
