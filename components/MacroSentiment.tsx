@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 interface FearGreed {
   score: number; rating: string; previousClose: number; previousWeek: number
@@ -26,15 +26,17 @@ interface Props {
   onMacroLoad?: (data: { us10yAgainst: boolean; dxyAgainst: boolean }) => void
 }
 
+const MACRO_REFRESH_MS = 60_000  // 60 seconds
+
 export default function MacroSentiment({ onMacroLoad }: Props) {
   const [macro, setMacro] = useState<Macro | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState('')
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true)
     try {
-      const res = await fetch('/api/macro')
+      const res = await fetch('/api/macro', { cache: 'no-store' })
       const { macro: m } = await res.json()
       setMacro(m)
       if (m?.fetchedAt) {
@@ -49,7 +51,29 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
     }
   }, [onMacroLoad])
 
-  useEffect(() => { load() }, [])
+  // ─── MOUNT  initial fetch + polling ─────────────────────────────────────────
+  useEffect(() => {
+    load()
+    pollTimerRef.current = setInterval(load, MACRO_REFRESH_MS)
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+    }
+  }, [load])
+
+  // ─── TAB WAKE  refresh when tab becomes visible ────────────────────────────
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        console.log('[MacroSentiment] Tab woke up — refreshing')
+        load()
+        // Restart the interval so it's aligned to the wake-up
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+        pollTimerRef.current = setInterval(load, MACRO_REFRESH_MS)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [load])
 
   if (loading) return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
@@ -108,13 +132,7 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
 
         {/* Indicator Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '14px' }}>
-
-          {/* Fear & Greed */}
-          {macro.fearGreed && (
-            <FGCard data={macro.fearGreed} />
-          )}
-
-          {/* US10Y */}
+          {macro.fearGreed && <FGCard data={macro.fearGreed} />}
           {macro.us10y && (
             <MacroCard
               label="US 10Y Yield"
@@ -126,8 +144,6 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
               border={macro.us10y.nqImpact === 'bearish' ? 'var(--red-border)' : macro.us10y.nqImpact === 'bullish' ? 'var(--green-border)' : 'var(--border)'}
             />
           )}
-
-          {/* DXY */}
           {macro.dxy && (
             <MacroCard
               label="US Dollar (DXY)"
@@ -139,8 +155,6 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
               border={macro.dxy.nqImpact === 'bearish' ? 'var(--red-border)' : macro.dxy.nqImpact === 'bullish' ? 'var(--green-border)' : 'var(--border)'}
             />
           )}
-
-          {/* ES Futures */}
           {macro.es && (
             <MacroCard
               label="S&P 500 Futures"
@@ -206,8 +220,6 @@ function FGCard({ data }: { data: FearGreed }) {
       <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '8px' }}>
         😱 Fear & Greed Index
       </div>
-
-      {/* Gauge bar */}
       <div style={{ marginBottom: '6px' }}>
         <div style={{ background: 'var(--surface)', borderRadius: '4px', height: '6px', overflow: 'hidden', position: 'relative' }}>
           <div style={{ width: `${data.score}%`, height: '100%', background: `linear-gradient(to right, #ff3d3d, #ff8c00, #ffb300, #00c853, #00e676)`, borderRadius: '4px' }} />
@@ -217,7 +229,6 @@ function FGCard({ data }: { data: FearGreed }) {
           <span>Fear</span><span>Neutral</span><span>Greed</span>
         </div>
       </div>
-
       <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '24px', fontWeight: '700', color, lineHeight: 1 }}>{data.score}</div>
       <div style={{ fontSize: '11px', color, fontWeight: '600', marginTop: '2px' }}>{data.rating}</div>
       <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '4px' }}>
