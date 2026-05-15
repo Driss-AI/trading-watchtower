@@ -30,24 +30,27 @@ export default function JournalPage() {
     setLoading(false)
   }, [])
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (clear = false) => {
     setSyncing(true)
     setMsg(null)
     try {
-      const res = await fetch('/api/trades/import?days=7', { method: 'POST' })
+      const url = clear
+        ? '/api/trades/import?days=30&clear=true'
+        : '/api/trades/import?days=14'
+      const res = await fetch(url, { method: 'POST' })
       const data = await res.json()
       if (data.error) { setMsg(`Error: ${data.error}`) }
-      else { setMsg(`Synced: ${data.imported} new, ${data.skipped} existing`) }
+      else { setMsg(`Synced: ${data.imported} new, ${data.skipped} existing${clear ? ' (clean re-import)' : ''}`) }
       await load()
     } catch { setMsg('Sync failed') }
     setSyncing(false)
-    setTimeout(() => setMsg(null), 6000)
+    setTimeout(() => setMsg(null), 8000)
   }, [load])
 
   useEffect(() => {
-    // Auto-sync on page load then fetch
-    sync()
-  }, [sync])
+    // Load trades on mount — don't auto-sync to avoid slow page load
+    load()
+  }, [load])
 
   // Group trades by date
   const byDate = trades.reduce<Record<string, Trade[]>>((acc, t) => {
@@ -74,18 +77,36 @@ export default function JournalPage() {
             {trades.length} trades · {wins}W {losses}L · Synced from TopStepX
           </p>
         </div>
-        <button
-          onClick={sync}
-          disabled={syncing}
-          style={{
-            fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '600',
-            padding: '10px 18px', borderRadius: '6px', cursor: syncing ? 'wait' : 'pointer',
-            border: '1px solid var(--green-border)', background: 'var(--green-bg)', color: 'var(--green)',
-            opacity: syncing ? 0.6 : 1,
-          }}
-        >
-          {syncing ? '⏳ Syncing...' : '⚡ Refresh from TopStepX'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => sync(false)}
+            disabled={syncing}
+            style={{
+              fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '600',
+              padding: '10px 18px', borderRadius: '6px', cursor: syncing ? 'wait' : 'pointer',
+              border: '1px solid var(--green-border)', background: 'var(--green-bg)', color: 'var(--green)',
+              opacity: syncing ? 0.6 : 1,
+            }}
+          >
+            {syncing ? '⏳ Syncing...' : '⚡ Refresh from TopStepX'}
+          </button>
+          <button
+            onClick={() => {
+              if (confirm('This will delete all trades and re-import from TopStepX (last 30 days). Continue?')) {
+                sync(true)
+              }
+            }}
+            disabled={syncing}
+            style={{
+              fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '600',
+              padding: '10px 14px', borderRadius: '6px', cursor: syncing ? 'wait' : 'pointer',
+              border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)',
+              opacity: syncing ? 0.6 : 1,
+            }}
+          >
+            🔄 Clean Re-import
+          </button>
+        </div>
       </div>
 
       {/* Sync feedback */}
@@ -122,7 +143,18 @@ export default function JournalPage() {
       ) : trades.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
           <div style={{ fontSize: '36px', marginBottom: '16px' }}>◎</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>No trades found on TopStepX</div>
+          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px' }}>No trades found</div>
+          <button
+            onClick={() => sync(false)}
+            disabled={syncing}
+            style={{
+              fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '600',
+              padding: '10px 18px', borderRadius: '6px', cursor: 'pointer',
+              border: '1px solid var(--green-border)', background: 'var(--green-bg)', color: 'var(--green)',
+            }}
+          >
+            ⚡ Import from TopStepX
+          </button>
         </div>
       ) : (
         dates.map(date => {
