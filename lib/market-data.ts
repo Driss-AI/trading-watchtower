@@ -53,9 +53,28 @@ export interface MarketBriefing {
   errors: string[]
 }
 
+// ─── TIMEZONE HELPER ──────────────────────────────────────────────────────────
+// Returns today's date string in ET as "YYYY-MM-DD" WITHOUT the double-
+// conversion bug.  The old code did:
+//   new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+//     .toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+// which subtracts the UTC offset TWICE, rolling the date back a day during
+// late-night ET hours.  The fix is to call toLocaleDateString on the real Date
+// object directly.
+
+function getTodayET(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
+function getTomorrowET(): string {
+  const now = new Date()
+  // Add 24h to current time, then format in ET
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  return tomorrow.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
 // ─── YAHOO FINANCE FETCHER ────────────────────────────────────────────────────
 async function yahooFetch(symbol: string): Promise<any> {
-  // Use range=2d to get premarket data as well
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d&includePrePost=true`
 
   const res = await fetch(url, {
@@ -103,12 +122,10 @@ export async function fetchQQQ(): Promise<QQQData> {
   const regularChange = parseFloat((price - prevClose).toFixed(2))
   const regularChangePct = parseFloat(((regularChange / prevClose) * 100).toFixed(2))
 
-  // Premarket data
   const premarketPrice = meta?.preMarketPrice ?? null
   const premarketChange = premarketPrice != null ? parseFloat((premarketPrice - prevClose).toFixed(2)) : null
   const premarketChangePct = premarketChange != null ? parseFloat(((premarketChange / prevClose) * 100).toFixed(2)) : null
 
-  // Use premarket if available for direction, otherwise use regular
   const effectiveChangePct = premarketChangePct ?? regularChangePct
 
   return {
@@ -162,8 +179,6 @@ export async function fetchNQ(): Promise<NQData> {
 
 // ─── ECONOMIC CALENDAR ───────────────────────────────────────────────────────
 
-// CalendarDay is defined in and re-exported from calendar-schedule.ts
-
 export async function fetchEconomicCalendar(todayOnly = false): Promise<NewsEvent[]> {
   const allDays = await fetchWeekCalendar()
   const ms = getMarketStatus()
@@ -177,13 +192,13 @@ export async function fetchEconomicCalendar(todayOnly = false): Promise<NewsEven
     return monday?.events ?? []
   }
 
-  const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const todayET = getTodayET()
   const today = allDays.find(d => d.date === todayET)
   return today?.events ?? []
 }
 
 export async function fetchWeekCalendar(): Promise<CalendarDay[]> {
-  // Strategy 1: Direct ForexFactory (Railway IP is not blocked)
+  // Strategy 1: Direct ForexFactory
   try {
     const [thisWeek, nextWeek] = await Promise.allSettled([
       _fetchFromProxy('https://nfs.faireconomy.media/ff_calendar', 'this'),
@@ -224,10 +239,9 @@ async function _fetchFromProxy(proxyURL: string, week: 'this' | 'next'): Promise
   if (!res.ok) throw new Error(`Fetch returned ${res.status} for ${fullURL}`)
   const events: any[] = await res.json()
 
-  const nowET    = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
-  const todayET  = nowET.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-  const tomorrow = new Date(nowET); tomorrow.setDate(nowET.getDate() + 1)
-  const tomorrowET = tomorrow.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  // ── FIX: use getTodayET / getTomorrowET to avoid double-conversion ──
+  const todayET    = getTodayET()
+  const tomorrowET = getTomorrowET()
 
   const byDate = new Map<string, NewsEvent[]>()
   for (const e of events) {
@@ -270,65 +284,6 @@ function mergeDays(a: CalendarDay[], b: CalendarDay[]): CalendarDay[] {
   return Array.from(map.values()).sort((x, y) => x.date.localeCompare(y.date))
 }
 
-// Legacy function kept for compatibility - now uses computed calendar
-async function _fetchWeekCalendarLive(): Promise<CalendarDay[]> {
-  try {
-    const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
-      headers: { 'User-Agent': 'TradingWatchtower/2.0' },
-      next: { revalidate: 3600 },
-    })
-    if (!res.ok) throw new Error(`FF calendar HTTP ${res.status}`)
-    const events: any[] = await res.json()
-
-    const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
-    const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-    const tomorrow = new Date(nowET); tomorrow.setDate(nowET.getDate() + 1)
-    const tomorrowET = tomorrow.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-
-    // Group USD events by date
-    const byDate = new Map<string, NewsEvent[]>()
-
-    for (const e of events) {
-      if (e.currency !== 'USD') continue
-      const date = e.date?.split('T')[0]
-      if (!date) continue
-
-      // Skip weekends
-      const dt = new Date(date + 'T12:00:00Z')
-      if (dt.getDay() === 0 || dt.getDay() === 6) continue
-
-      if (!byDate.has(date)) byDate.set(date, [])
-      byDate.get(date)!.push({
-        time: e.time ?? 'All Day',
-        title: e.title ?? '',
-        currency: 'USD',
-        impact: (e.impact?.toLowerCase() === 'high' ? 'high' : e.impact?.toLowerCase() === 'medium' ? 'medium' : 'low') as 'high' | 'medium' | 'low',
-        forecast: e.forecast ?? undefined,
-        previous: e.previous ?? undefined,
-      })
-    }
-
-    const days: CalendarDay[] = []
-    for (const [date, dayEvents] of Array.from(byDate.entries()).sort()) {
-      const dt = new Date(date + 'T12:00:00Z')
-      const dayName = dt.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })
-      days.push({
-        date,
-        dateLabel: dayName,
-        isToday: date === todayET,
-        isTomorrow: date === tomorrowET,
-        events: dayEvents.filter(e => e.title),
-        hasHighImpact: dayEvents.some(e => e.impact === 'high'),
-      })
-    }
-
-    return days
-  } catch (err) {
-    console.warn('[MarketData] Calendar fetch failed:', err)
-    return []
-  }
-}
-
 // ─── FULL BRIEFING ────────────────────────────────────────────────────────────
 export async function fetchMarketBriefing(): Promise<MarketBriefing> {
   const errors: string[] = []
@@ -359,13 +314,13 @@ export async function fetchMarketBriefing(): Promise<MarketBriefing> {
 // ─── MACRO SENTIMENT ─────────────────────────────────────────────────────────
 
 export interface FearGreedData {
-  score: number         // 0–100
-  rating: string        // "Extreme Fear" | "Fear" | "Neutral" | "Greed" | "Extreme Greed"
+  score: number
+  rating: string
   previousClose: number
   previousWeek: number
   previousMonth: number
   direction: 'rising' | 'falling' | 'flat'
-  nqBias: 'bullish' | 'bearish' | 'neutral'  // fear = contrarian buy / greed = caution
+  nqBias: 'bullish' | 'bearish' | 'neutral'
   color: 'extreme-fear' | 'fear' | 'neutral' | 'greed' | 'extreme-greed'
 }
 
@@ -377,7 +332,7 @@ export interface YieldData {
   change: number
   changePct: number
   direction: 'rising' | 'falling' | 'flat'
-  nqImpact: 'bullish' | 'bearish' | 'neutral'  // rising yield = bearish NQ
+  nqImpact: 'bullish' | 'bearish' | 'neutral'
   label: string
 }
 
@@ -395,14 +350,12 @@ export interface MacroSentiment {
   us10y: YieldData | null
   dxy: YieldData | null
   es: ESFuturesData | null
-  // Composite NQ bias derived from all signals
   nqBias: 'strong-bullish' | 'bullish' | 'neutral' | 'bearish' | 'strong-bearish'
   nqBiasLabel: string
   bullishSignals: string[]
   bearishSignals: string[]
-  // Direct feed into session scoring
-  suggestUS10yAgainst: boolean   // true = US10Y is rising (bad for NQ)
-  suggestDXYAgainst: boolean     // true = DXY is rising (bad for NQ)
+  suggestUS10yAgainst: boolean
+  suggestDXYAgainst: boolean
   marketStatus: ReturnType<typeof getMarketStatus>
   fetchedAt: string
   errors: string[]
@@ -416,7 +369,7 @@ export async function fetchFearAndGreed(): Promise<FearGreedData> {
       'Referer': 'https://money.cnn.com/',
       Accept: 'application/json',
     },
-    next: { revalidate: 600 }, // 10 min cache
+    next: { revalidate: 600 },
   })
 
   if (!res.ok) throw new Error(`Fear & Greed HTTP ${res.status}`)
@@ -442,13 +395,9 @@ export async function fetchFearAndGreed(): Promise<FearGreedData> {
     score <= 75 ? 'Greed' :
     'Extreme Greed'
 
-  // For NQ ORB trading:
-  // Extreme Fear (contrarian) can signal a bounce — slight bullish
-  // Extreme Greed = market extended, caution
-  // Neutral/mild = no strong bias
   const nqBias: FearGreedData['nqBias'] =
-    score <= 20 ? 'bullish' :   // extreme fear = potential bounce
-    score >= 80 ? 'bearish' :   // extreme greed = extended
+    score <= 20 ? 'bullish' :
+    score >= 80 ? 'bearish' :
     'neutral'
 
   return {
@@ -463,7 +412,7 @@ export async function fetchFearAndGreed(): Promise<FearGreedData> {
   }
 }
 
-// US 10Y Treasury Yield — inverse correlation with NQ
+// US 10Y Treasury Yield
 export async function fetchUS10Y(): Promise<YieldData> {
   const result = await yahooFetch('^TNX')
   const meta = result?.meta
@@ -476,7 +425,6 @@ export async function fetchUS10Y(): Promise<YieldData> {
   const direction: YieldData['direction'] =
     changePct > 0.3 ? 'rising' : changePct < -0.3 ? 'falling' : 'flat'
 
-  // Rising 10Y = bad for NQ (growth stocks de-rate on higher discount rate)
   const nqImpact: YieldData['nqImpact'] =
     direction === 'rising' ? 'bearish' :
     direction === 'falling' ? 'bullish' :
@@ -499,9 +447,8 @@ export async function fetchUS10Y(): Promise<YieldData> {
   }
 }
 
-// DXY Dollar Index — inverse correlation with NQ
+// DXY Dollar Index
 export async function fetchDXY(): Promise<YieldData> {
-  // Try multiple symbols — DX=F rolls quarterly and can 404 near expiry
   let result: any = null
   for (const sym of ['DX=F', 'DX-Y.NYB', 'UUP']) {
     try { result = await yahooFetch(sym); if (result?.meta?.regularMarketPrice) break } catch {}
@@ -516,7 +463,6 @@ export async function fetchDXY(): Promise<YieldData> {
   const direction: YieldData['direction'] =
     changePct > 0.2 ? 'rising' : changePct < -0.2 ? 'falling' : 'flat'
 
-  // Rising DXY = bad for NQ (dollar strength pressures risk assets)
   const nqImpact: YieldData['nqImpact'] =
     direction === 'rising' ? 'bearish' :
     direction === 'falling' ? 'bullish' :
@@ -580,13 +526,22 @@ export function getMarketStatus(): {
   isMarketHours: boolean
   isAfterHours: boolean
   nextSessionLabel: string
-  contextLabel: string  // "Today's" | "Next Session's" | "This Week's"
+  contextLabel: string
 } {
   const now = new Date()
-  const etNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
-  const day  = etNow.getDay()   // 0=Sun, 6=Sat
-  const hour = etNow.getHours()
-  const min  = etNow.getMinutes()
+  // Use Intl to get ET hours/minutes WITHOUT double-conversion
+  const etParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric', minute: 'numeric', hour12: false,
+    weekday: 'short',
+  }).formatToParts(now)
+
+  const hour = parseInt(etParts.find(p => p.type === 'hour')?.value ?? '0')
+  const min  = parseInt(etParts.find(p => p.type === 'minute')?.value ?? '0')
+  const weekdayStr = etParts.find(p => p.type === 'weekday')?.value ?? ''
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const day = dayMap[weekdayStr] ?? new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay()
+
   const timeDecimal = hour + min / 60
 
   const isWeekend = day === 0 || day === 6
@@ -602,9 +557,10 @@ export function getMarketStatus(): {
     nextSessionLabel = `Monday (opens in ${daysUntilMon === 1 ? 'tomorrow' : '2 days'})`
     contextLabel = "Weekend — Next Week's"
   } else if (isAfterHours || (day === 5 && timeDecimal >= 16)) {
-    const tomorrow = new Date(etNow); tomorrow.setDate(etNow.getDate() + 1)
-    const tomorrowDay = tomorrow.getDay()
-    nextSessionLabel = tomorrowDay === 6 ? 'Monday' : 'Tomorrow'
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    const tomorrowDay = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(tomorrow).slice(0, 1))
+    const isFriday = day === 5
+    nextSessionLabel = isFriday ? 'Monday' : 'Tomorrow'
     contextLabel = "Next Session's"
   } else if (isPreMarket) {
     contextLabel = "Today's Pre-Market"
@@ -632,7 +588,6 @@ export async function fetchMacroSentiment(): Promise<MacroSentiment> {
     fetchESFutures().then((d) => { es = d }).catch((e) => errors.push(`ES: ${e.message}`)),
   ])
 
-  // Build bullish/bearish signal list
   const bullishSignals: string[] = []
   const bearishSignals: string[] = []
 
@@ -653,7 +608,6 @@ export async function fetchMacroSentiment(): Promise<MacroSentiment> {
     if ((es as ESFuturesData).direction === 'bearish') bearishSignals.push(`ES futures down ${Math.abs((es as ESFuturesData).premarketChangePct ?? (es as ESFuturesData).changePct)}%`)
   }
 
-  // Composite bias
   const score = bullishSignals.length - bearishSignals.length
   const nqBias: MacroSentiment['nqBias'] =
     score >= 2 ? 'strong-bullish' :
