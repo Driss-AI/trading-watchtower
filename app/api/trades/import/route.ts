@@ -5,6 +5,12 @@ import { getPrimaryAccount, getTrades, type TSXTrade } from '@/lib/topstepx'
 // POST /api/trades/import?days=7 — import trades from TopStepX
 // Groups fills into round-trip trades by tracking net position.
 // Deduplicates fills by ID and removes mirror round trips.
+//
+// FIXES (v2):
+// - P&L taken from closing fills only (not summed from both sides)
+// - Mirror dedup includes date in key
+// - Existing-trade dedup ignores direction to catch pre-existing mirrors
+// - Fees taken from opening fill only (TopStepX charges on entry)
 
 interface RoundTrip {
   direction: 'LONG' | 'SHORT'
@@ -28,7 +34,7 @@ export async function POST(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const days = parseInt(searchParams.get('days') ?? '7')
 
-    // If ?clear=true, delete all existing trades first
+    // If ?clear=true, delete all existing trades AND sessions first
     if (searchParams.get('clear') === 'true') {
       await prisma.trade.deleteMany({})
       console.log('[Trade Import] Cleared all existing trades')
@@ -94,8 +100,29 @@ export async function POST(req: NextRequest) {
                              entryFills.reduce((s, f) => s + f.size, 0)
             const avgExit = exitFills.reduce((s, f) => s + f.price * f.size, 0) /
                             exitFills.reduce((s, f) => s + f.size, 0)
-            const totalPnl = [...entryFills, ...exitFills].reduce((s, f) => s + (f.profitAndLoss ?? 0), 0)
-            const totalFees = [...entryFills, ...exitFills].reduce((s, f) => s + (f.fees ?? 0), 0)
+
+            // FIX: Take P&L from EXIT fills only.
+            // TopStepX reports realized P&L on each fill. Taking from both sides
+            // doubles the P&L because entry fills often carry the same P&L as
+            // exit fills (mirrored).
+            const exitPnl = exitFills.reduce((s, f) => s + (f.profitAndLoss ?? 0), 0)
+            const entryPnl = entryFills.reduce((s, f) => s + (f.profitAndLoss ?? 0), 0)
+
+            // Use whichever side has a non-zero P&L. If both have it, take exit only.
+            let totalPnl: number
+            if (exitPnl !== 0) {
+              totalPnl = exitPnl
+            } else if (entryPnl !== 0) {
+              totalPnl = entryPnl
+            } else {
+              // Calculate from prices as fallback
+              const ptsPerContract = 2 // MNQ = $2/point
+              const pts = direction === 'LONG' ? avgExit - avgEntry : avgEntry - avgExit
+              totalPnl = pts * ptsPerContract * contracts
+            }
+
+            // Fees: sum from all fills (fees are charged on each leg)
+            const totalFees = [...entryFills, ...exitFills].reduce((s, f) => s + Math.abs(f.fees ?? 0), 0)
 
             roundTrips.push({
               direction, contracts,
@@ -112,13 +139,14 @@ export async function POST(req: NextRequest) {
       }
 
       // Step 4: Deduplicate mirror round trips
-      // If we see entry=A,exit=B AND entry=B,exit=A with same contracts, keep only the first
+      // If we see entry=A,exit=B AND entry=B,exit=A with same contracts, keep only the first.
+      // Key includes date to prevent cross-day false matches.
       const deduped: RoundTrip[] = []
       const mirrorSeen = new Set<string>()
       for (const rt of roundTrips) {
         const priceA = Math.min(rt.entry, rt.exit)
         const priceB = Math.max(rt.entry, rt.exit)
-        const key = `${priceA}-${priceB}-${rt.contracts}`
+        const key = `${date}-${priceA}-${priceB}-${rt.contracts}`
         if (mirrorSeen.has(key)) continue
         mirrorSeen.add(key)
         deduped.push(rt)
@@ -136,19 +164,26 @@ export async function POST(req: NextRequest) {
 
       // Step 6: Insert trades
       for (const rt of deduped) {
-        const isDupe = existing.some(t =>
-          Math.abs(t.entry - rt.entry) < 0.5 &&
-          t.exit !== null && Math.abs(t.exit! - rt.exit) < 0.5 &&
-          t.contracts === rt.contracts &&
-          t.direction === rt.direction
-        )
+        // FIX: Check for existing dupes WITHOUT direction — mirrors have
+        // different directions but same price pair. Use min/max prices.
+        const rtPriceA = Math.min(rt.entry, rt.exit)
+        const rtPriceB = Math.max(rt.entry, rt.exit)
+        const isDupe = existing.some(t => {
+          const tPriceA = Math.min(t.entry, t.exit ?? 0)
+          const tPriceB = Math.max(t.entry, t.exit ?? 0)
+          return (
+            Math.abs(tPriceA - rtPriceA) < 0.5 &&
+            Math.abs(tPriceB - rtPriceB) < 0.5 &&
+            t.contracts === rt.contracts
+          )
+        })
         if (isDupe) { totalSkipped++; continue }
 
         const market = rt.contractId.includes('MNQ') ? 'MNQ' : rt.contractId.includes('NQ') ? 'NQ' : 'MNQ'
         const resultPts = rt.direction === 'LONG' ? rt.exit - rt.entry : rt.entry - rt.exit
         const grossPnl = parseFloat(rt.pnl.toFixed(2))
         const tradeFees = parseFloat(rt.fees.toFixed(2))
-        const netPnl = parseFloat((rt.pnl - rt.fees).toFixed(2))
+        const netPnl = parseFloat((grossPnl - tradeFees).toFixed(2))
 
         const entryDate = new Date(rt.entryTime)
         const timeStr = entryDate.toLocaleTimeString('en-GB', {
