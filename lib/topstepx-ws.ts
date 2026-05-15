@@ -92,6 +92,10 @@ const _subscribedContracts = new Set<string>()
 // Last-known quote per contract (so a new SSE client gets an immediate value)
 const _lastQuote = new Map<string, WSQuote>()
 
+// Guard against overlapping reconnect attempts
+let _userReconnecting = false
+let _marketReconnecting = false
+
 // ─── BROADCAST ────────────────────────────────────────────────────────────────
 
 function broadcast(event: WSEvent) {
@@ -116,6 +120,76 @@ function toWSQuote(contractId: string, raw: any): WSQuote {
     sessionHigh:  Number(raw?.high         ?? 0),
     sessionLow:   Number(raw?.low          ?? 0),
     timestamp:    String(raw?.timestamp ?? raw?.lastUpdated ?? new Date().toISOString()),
+  }
+}
+
+// ─── GATEWAY LOGOUT HANDLER ───────────────────────────────────────────────────
+// TopStepX sends 'gatewaylogout' when the session is invalidated (token expired,
+// maintenance, etc). We must refresh the token and reconnect.
+
+async function handleGatewayLogout(hubName: string) {
+  console.log(`[TopstepX WS] gatewaylogout received on ${hubName} hub — reconnecting with fresh token`)
+  broadcast({ type: 'disconnected', hub: hubName, reason: 'gatewaylogout' })
+
+  // Small delay to let the server-side cleanup finish
+  await new Promise((r) => setTimeout(r, 2000))
+
+  try {
+    if (hubName === 'user') {
+      await reconnectUserHub()
+    } else {
+      await reconnectMarketHub()
+    }
+  } catch (err) {
+    console.error(`[TopstepX WS] Failed to reconnect ${hubName} hub after gatewaylogout:`, err)
+  }
+}
+
+async function reconnectUserHub() {
+  if (_userReconnecting) return
+  _userReconnecting = true
+  try {
+    if (_userHub) {
+      try { await _userHub.stop() } catch {}
+      _userHub = null
+    }
+    _userHub = await buildUserHub()
+    await _userHub.start()
+    broadcast({ type: 'connected', hub: 'user' })
+    console.log('[TopstepX WS] User hub reconnected after gatewaylogout')
+  } finally {
+    _userReconnecting = false
+  }
+}
+
+async function reconnectMarketHub() {
+  if (_marketReconnecting) return
+  _marketReconnecting = true
+  try {
+    const contractsToResubscribe = Array.from(_subscribedContracts)
+    if (_marketHub) {
+      try { await _marketHub.stop() } catch {}
+      _marketHub = null
+    }
+    _subscribedContracts.clear()
+
+    _marketHub = await buildMarketHub()
+    await _marketHub.start()
+    broadcast({ type: 'connected', hub: 'market' })
+    console.log('[TopstepX WS] Market hub reconnected after gatewaylogout')
+
+    // Re-subscribe to all contracts
+    for (const contractId of contractsToResubscribe) {
+      try {
+        await _marketHub.invoke('SubscribeContractQuotes', contractId)
+        _subscribedContracts.add(contractId)
+        console.log(`[TopstepX WS] Re-subscribed to quotes: ${contractId}`)
+      } catch (err) {
+        console.error(`[TopstepX WS] Failed to re-subscribe to ${contractId}:`, err)
+      }
+    }
+  } finally {
+    _marketReconnecting = false
   }
 }
 
@@ -147,6 +221,10 @@ async function buildUserHub(): Promise<signalR.HubConnection> {
   hub.on('GatewayUserOrder', (data: WSUserOrder) => {
     broadcast({ type: 'order', data })
   })
+
+  // Handle TopStepX session invalidation
+  hub.on('gatewaylogout', () => handleGatewayLogout('user'))
+  hub.on('GatewayLogout', () => handleGatewayLogout('user'))
 
   hub.onreconnected(() => broadcast({ type: 'connected', hub: 'user' }))
   hub.onreconnecting(() => broadcast({ type: 'disconnected', hub: 'user', reason: 'reconnecting' }))
@@ -209,6 +287,10 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
   hub.on('GatewayDepth', (_contractId: string, _raw: any) => {
     // Same — DOM events not currently surfaced.
   })
+
+  // Handle TopStepX session invalidation
+  hub.on('gatewaylogout', () => handleGatewayLogout('market'))
+  hub.on('GatewayLogout', () => handleGatewayLogout('market'))
 
   hub.onreconnected(async () => {
     broadcast({ type: 'connected', hub: 'market' })
