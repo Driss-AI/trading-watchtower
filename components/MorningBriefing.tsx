@@ -92,68 +92,88 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
     }
   }, [])
 
-  useEffect(() => {
-    reloadBriefing()
-    pollTimerRef.current = setInterval(reloadBriefing, BRIEFING_REFRESH_MS)
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+  // ─── SSE  open / reconnect helper ──────────────────────────────────────────
+  const openSSE = useCallback(() => {
+    // Close any existing connection first
+    if (evtSourceRef.current) {
+      evtSourceRef.current.close()
+      evtSourceRef.current = null
     }
+
+    const es = new EventSource('/api/topstepx/stream?hub=market&symbol=MNQ')
+    evtSourceRef.current = es
+
+    es.onopen = () => {
+      setLiveHealthy(true)
+    }
+
+    es.onmessage = (ev) => {
+      try {
+        const payload = JSON.parse(ev.data)
+        if (payload?.type === 'quote' && payload?.data) {
+          const q = payload.data
+          const price = Number(q.price || 0)
+          // Never overwrite a real price with 0 — protects against empty
+          // ticks during SSE reconnect or gateway hiccups.
+          if (price > 0) {
+            setLiveNQ({
+              price,
+              change: Number(q.change || 0),
+              changePct: Number(q.changePct || 0),
+              timestamp: String(q.timestamp || new Date().toISOString()),
+            })
+          }
+          setLiveHealthy(true)
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    es.onerror = () => {
+      setLiveHealthy(false)
+      // EventSource reconnects automatically; don't close it.
+    }
+
+    return es
+  }, [])
+
+  // ─── POLL  start / restart helper ──────────────────────────────────────────
+  const startPolling = useCallback(() => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+    reloadBriefing() // immediate fetch
+    pollTimerRef.current = setInterval(reloadBriefing, BRIEFING_REFRESH_MS)
   }, [reloadBriefing])
 
-  // ─── SSE  live NQ tick ──────────────────────────────────────────────────────
+  // ─── MOUNT  start everything ───────────────────────────────────────────────
   useEffect(() => {
-    let closed = false
+    startPolling()
+    openSSE()
 
-    const openStream = () => {
-      if (closed) return
-      const es = new EventSource('/api/topstepx/stream?hub=market&symbol=MNQ')
-      evtSourceRef.current = es
-
-      es.onopen = () => {
-        if (!closed) setLiveHealthy(true)
-      }
-
-      es.onmessage = (ev) => {
-        if (closed) return
-        try {
-          const payload = JSON.parse(ev.data)
-          if (payload?.type === 'quote' && payload?.data) {
-            const q = payload.data
-            const price = Number(q.price || 0)
-            // Never overwrite a real price with 0 — protects against empty
-            // ticks during SSE reconnect or gateway hiccups.
-            if (price > 0) {
-              setLiveNQ({
-                price,
-                change: Number(q.change || 0),
-                changePct: Number(q.changePct || 0),
-                timestamp: String(q.timestamp || new Date().toISOString()),
-              })
-            }
-            setLiveHealthy(true)
-          }
-        } catch {
-          // ignore parse errors
-        }
-      }
-
-      es.onerror = () => {
-        setLiveHealthy(false)
-        // EventSource reconnects automatically; don't close it.
-      }
-    }
-
-    openStream()
     return () => {
-      closed = true
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
       if (evtSourceRef.current) {
         evtSourceRef.current.close()
         evtSourceRef.current = null
       }
     }
-  }, [])
+  }, [startPolling, openSSE])
 
-
+  // ─── TAB WAKE  reconnect SSE + restart polling when tab becomes visible ────
+  // Browsers throttle/kill setInterval and drop EventSource when a tab is
+  // backgrounded. This listener fires when the user switches back, immediately
+  // fetching fresh data and reopening the live stream.
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        console.log('[MorningBriefing] Tab woke up — reconnecting')
+        startPolling()
+        openSSE()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [startPolling, openSSE])
 
   // ─── EMIT  auto-populate signal whenever the briefing snapshot changes ──────
   useEffect(() => {
