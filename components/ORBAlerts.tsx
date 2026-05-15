@@ -8,6 +8,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 //   - Follow-through bar read
 //   - Single-sentence verdict: Take it / Wait / High conviction
 //   - Always visible: shows in monitoring, closed, and any phase with OR data
+//
+// v4.1 adds: tab-wake SSE reconnect so the stream recovers after backgrounding
 
 type BreakoutDirection = 'LONG' | 'SHORT' | null
 
@@ -169,6 +171,7 @@ export default function ORBAlerts() {
   const orHighRef        = useRef<number | null>(null)
   const orLowRef         = useRef<number | null>(null)
   const signalFetchedRef = useRef(false)
+  const evtSourceRef     = useRef<EventSource | null>(null)
 
   // ─── LOAD OR ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -203,27 +206,28 @@ export default function ORBAlerts() {
   }, [])
 
   // ─── MACRO BIAS ──────────────────────────────────────────────────────────
+  const loadMacro = useCallback(async () => {
+    try {
+      const res = await fetch('/api/market-data', { cache: 'no-store' })
+      const { briefing } = await res.json()
+      if (briefing) {
+        const qqBullish = briefing.qqq?.direction === 'bullish'
+        const vixLow    = briefing.vix?.level < 20
+        setMacroBias({
+          label:       qqBullish && vixLow ? 'Bullish' : !qqBullish && briefing.vix?.level > 25 ? 'Bearish' : 'Neutral',
+          color:       qqBullish && vixLow ? 'var(--green)' : !qqBullish && briefing.vix?.level > 25 ? 'var(--red)' : 'var(--yellow)',
+          preferLong:  qqBullish && vixLow,
+          preferShort: !qqBullish && briefing.vix?.level > 25,
+        })
+      }
+    } catch {}
+  }, [])
+
   useEffect(() => {
-    async function loadMacro() {
-      try {
-        const res = await fetch('/api/market-data', { cache: 'no-store' })
-        const { briefing } = await res.json()
-        if (briefing) {
-          const qqBullish = briefing.qqq?.direction === 'bullish'
-          const vixLow    = briefing.vix?.level < 20
-          setMacroBias({
-            label:       qqBullish && vixLow ? 'Bullish' : !qqBullish && briefing.vix?.level > 25 ? 'Bearish' : 'Neutral',
-            color:       qqBullish && vixLow ? 'var(--green)' : !qqBullish && briefing.vix?.level > 25 ? 'var(--red)' : 'var(--yellow)',
-            preferLong:  qqBullish && vixLow,
-            preferShort: !qqBullish && briefing.vix?.level > 25,
-          })
-        }
-      } catch {}
-    }
     loadMacro()
     const t = setInterval(loadMacro, 60_000)
     return () => clearInterval(t)
-  }, [])
+  }, [loadMacro])
 
   // ─── PHASE TRACKER ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -250,14 +254,20 @@ export default function ORBAlerts() {
     }
   }, [phase, orLocked])
 
-  // ─── SSE STREAM ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false
+  // ─── SSE STREAM  open / reconnect helper ─────────────────────────────────
+  const openSSE = useCallback(() => {
+    // Close any existing connection first
+    if (evtSourceRef.current) {
+      evtSourceRef.current.close()
+      evtSourceRef.current = null
+    }
+
     const es = new EventSource('/api/topstepx/stream?hub=market&symbol=MNQ')
-    es.onopen    = () => { if (!cancelled) setStreaming(true) }
-    es.onerror   = () => { if (!cancelled) setStreaming(false) }
+    evtSourceRef.current = es
+
+    es.onopen = () => setStreaming(true)
+    es.onerror = () => setStreaming(false)
     es.onmessage = (e) => {
-      if (cancelled) return
       try {
         const event = JSON.parse(e.data)
         if (event.type === 'quote' && event.data?.price > 0) {
@@ -279,8 +289,33 @@ export default function ORBAlerts() {
         }
       } catch {}
     }
-    return () => { cancelled = true; es.close() }
+
+    return es
   }, [])
+
+  // ─── SSE STREAM  mount ──────────────────────────────────────────────────
+  useEffect(() => {
+    openSSE()
+    return () => {
+      if (evtSourceRef.current) {
+        evtSourceRef.current.close()
+        evtSourceRef.current = null
+      }
+    }
+  }, [openSSE])
+
+  // ─── TAB WAKE  reconnect SSE when tab becomes visible again ──────────────
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        console.log('[ORBAlerts] Tab woke up — reconnecting SSE + refreshing macro')
+        openSSE()
+        loadMacro()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [openSSE, loadMacro])
 
   // ─── CANDLE SIGNAL FETCH ─────────────────────────────────────────────────
   const fetchCandleSignal = useCallback(async (dir: 'LONG' | 'SHORT' | null, high: number, low: number) => {
