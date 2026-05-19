@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { fetchMarketBriefing, fetchWeekCalendar, getMarketStatus } from '@/lib/market-data'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/market-data — VIX, QQQ, NQ, today's news + full week calendar
 export async function GET() {
   try {
