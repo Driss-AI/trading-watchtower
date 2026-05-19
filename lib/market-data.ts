@@ -82,7 +82,7 @@ async function yahooFetch(symbol: string): Promise<any> {
       'User-Agent': 'Mozilla/5.0 (compatible; TradingWatchtower/2.0)',
       Accept: 'application/json',
     },
-    next: { revalidate: 300 }, // cache 5 min
+    cache: 'no-store',
   })
 
   if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status} for ${symbol}`)
@@ -233,7 +233,7 @@ async function _fetchFromProxy(proxyURL: string, week: 'this' | 'next'): Promise
   const fullURL = proxyURL.endsWith('/ff_calendar') ? `${proxyURL}_${week}week.json` : `${proxyURL}?week=${week}`
   const res = await fetch(fullURL, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json', 'Referer': 'https://www.forexfactory.com/' },
-    next: { revalidate: 3600 },
+    cache: 'no-store',
     signal: AbortSignal.timeout(8000),
   })
   if (!res.ok) throw new Error(`Fetch returned ${res.status} for ${fullURL}`)
@@ -369,7 +369,7 @@ export async function fetchFearAndGreed(): Promise<FearGreedData> {
       'Referer': 'https://money.cnn.com/',
       Accept: 'application/json',
     },
-    next: { revalidate: 600 },
+    cache: 'no-store',
   })
 
   if (!res.ok) throw new Error(`Fear & Greed HTTP ${res.status}`)
