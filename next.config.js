@@ -2,6 +2,7 @@
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client'],
+    instrumentationHook: true,
   },
   async redirects() {
     return [

@@ -767,6 +767,54 @@ export function configureEngine(config: Partial<EngineConfig>): void {
   console.log('[PaperEngine] Config updated:', _config)
 }
 
+// ─── AUTO-START ─────────────────────────────────────────────────────────────
+// Engine starts itself on server boot. No manual action needed.
+// Checks every 60s if it should be running (weekday, market hours or pre-market).
+// Stops itself after market close and restarts next morning.
+
+let _autoStartTimer: ReturnType<typeof setInterval> | null = null
+
+function shouldBeRunning(): boolean {
+  const now = new Date()
+  const ny = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(now)
+
+  const weekday = ny.find(p => p.type === 'weekday')?.value ?? ''
+  const hour = parseInt(ny.find(p => p.type === 'hour')?.value ?? '0')
+  const min = parseInt(ny.find(p => p.type === 'minute')?.value ?? '0')
+  const timeDecimal = hour + min / 60
+
+  if (['Sat', 'Sun'].includes(weekday)) return false
+  // Run from 9:00 AM (pre-session analysis) to 12:00 PM (buffer after 11:30 close)
+  return timeDecimal >= 9 && timeDecimal < 12
+}
+
+function initAutoStart(): void {
+  if (_autoStartTimer) return
+
+  async function tick() {
+    if (shouldBeRunning() && !_enabled) {
+      console.log('[PaperEngine] Auto-starting for trading session')
+      await startEngine()
+    } else if (!shouldBeRunning() && _enabled) {
+      console.log('[PaperEngine] Auto-stopping — outside trading hours')
+      await stopEngine()
+    }
+  }
+
+  tick().catch(err => console.error('[PaperEngine] Auto-start error:', err))
+  _autoStartTimer = setInterval(() => {
+    tick().catch(err => console.error('[PaperEngine] Auto-start tick error:', err))
+  }, 60_000)
+
+  console.log('[PaperEngine] Auto-start scheduler initialized')
+}
+
+// Boot on module load
+initAutoStart()
+
 export function getEngineState(): PaperEngineState {
   // Refresh phase on read
   if (_enabled) {
