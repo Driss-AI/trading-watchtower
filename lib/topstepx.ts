@@ -135,14 +135,16 @@ function buildFrontMonthContractId(symbol: string): string {
 
 export async function getActiveNQContractId(): Promise<string> {
   if (process.env.TOPSTEPX_NQ_CONTRACT_ID) return process.env.TOPSTEPX_NQ_CONTRACT_ID
-  const contracts = await searchContracts('NQ', true)
+  // live=false → sim/evaluation feed (correct for TopStep combine accounts)
+  const contracts = await searchContracts('NQ', false)
   const nq = contracts.filter((c) => c.id?.includes('CON.F.US.NQ') && !c.id?.includes('MNQ'))
   return nq[0]?.id ?? buildFrontMonthContractId('NQ')
 }
 
 export async function getActiveMNQContractId(): Promise<string> {
   if (process.env.TOPSTEPX_MNQ_CONTRACT_ID) return process.env.TOPSTEPX_MNQ_CONTRACT_ID
-  const contracts = await searchContracts('MNQ', true)
+  // live=false → sim/evaluation feed (correct for TopStep combine accounts)
+  const contracts = await searchContracts('MNQ', false)
   const mnq = contracts.filter((c) => c.id?.includes('CON.F.US.MNQ'))
   return mnq[0]?.id ?? buildFrontMonthContractId('MNQ')
 }

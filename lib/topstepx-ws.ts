@@ -197,9 +197,9 @@ async function reconnectMarketHub() {
     // Re-subscribe to all contracts
     for (const contractId of contractsToResubscribe) {
       try {
-        await _marketHub.invoke('SubscribeContractQuotes', contractId)
+        await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
         _subscribedContracts.add(contractId)
-        console.log(`[TopstepX WS] Re-subscribed to quotes: ${contractId}`)
+        console.log(`[TopstepX WS] Re-subscribed to quotes (sim): ${contractId}`)
       } catch (err) {
         console.error(`[TopstepX WS] Failed to re-subscribe to ${contractId}:`, err)
       }
@@ -317,7 +317,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
     broadcast({ type: 'connected', hub: 'market' })
     // Re-subscribe to all contracts after reconnect
     for (const contractId of Array.from(_subscribedContracts)) {
-      try { await hub.invoke('SubscribeContractQuotes', contractId) } catch {}
+      try { await hub.invoke('SubscribeContractQuotes', contractId, false) } catch {}
     }
   })
   hub.onclose((err) => broadcast({ type: 'disconnected', hub: 'market', reason: err?.message }))
@@ -358,9 +358,10 @@ export async function subscribeToQuote(contractId: string): Promise<void> {
   }
   // Idempotent — if already subscribed, don't re-invoke.
   if (_subscribedContracts.has(contractId)) return
-  await _marketHub.invoke('SubscribeContractQuotes', contractId)
+  // live=false → sim/evaluation data feed (correct for TopStep combine accounts)
+  await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
   _subscribedContracts.add(contractId)
-  console.log(`[TopstepX WS] Subscribed to quotes: ${contractId}`)
+  console.log(`[TopstepX WS] Subscribed to quotes (sim): ${contractId}`)
 }
 
 export async function unsubscribeFromQuote(contractId: string): Promise<void> {
