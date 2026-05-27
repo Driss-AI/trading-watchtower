@@ -54,8 +54,12 @@ export async function getTopstepXToken(): Promise<string> {
   return _tokenFetching
 }
 
+export function invalidateTokenCache() {
+  _tokenCache = null
+}
+
 // ─── AUTHENTICATED POST ───────────────────────────────────────────────────────
-async function apiPost<T = any>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+async function apiPost<T = any>(endpoint: string, body: Record<string, unknown>, _retried = false): Promise<T> {
   const token = await getTopstepXToken()
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
@@ -67,7 +71,8 @@ async function apiPost<T = any>(endpoint: string, body: Record<string, unknown>)
     body: JSON.stringify(body),
     cache: 'no-store',
   })
-  if (res.status === 401) { _tokenCache = null; return apiPost(endpoint, body) }
+  if (res.status === 401 && !_retried) { _tokenCache = null; return apiPost(endpoint, body, true) }
+  if (res.status === 401) throw new Error(`TopstepX ${endpoint} HTTP 401 after token refresh`)
   if (!res.ok) throw new Error(`TopstepX ${endpoint} HTTP ${res.status}`)
   const data = await res.json()
   if (data.success === false) throw new Error(`TopstepX ${endpoint} error (${data.errorCode}): ${data.errorMessage}`)

@@ -8,7 +8,7 @@
 
 import * as signalR from '@microsoft/signalr'
 import { z } from 'zod'
-import { getTopstepXToken } from './topstepx'
+import { getTopstepXToken, invalidateTokenCache } from './topstepx'
 
 // ─── ZOD SCHEMA FOR GATEWAY QUOTE ─────────────────────────────────────────────
 const RawQuoteSchema = z.object({
@@ -118,9 +118,6 @@ const _lastQuote = new Map<string, WSQuote>()
 let _userConnecting:   Promise<void> | null = null
 let _marketConnecting: Promise<void> | null = null
 
-// Guard against overlapping reconnect attempts
-let _userReconnecting = false
-let _marketReconnecting = false
 
 // ─── BROADCAST ────────────────────────────────────────────────────────────────
 
@@ -157,71 +154,87 @@ function toWSQuote(contractId: string, raw: any): WSQuote {
 }
 
 // ─── GATEWAY LOGOUT HANDLER ───────────────────────────────────────────────────
-// TopStepX sends 'gatewaylogout' when the session is invalidated (token expired,
-// maintenance, etc). We must refresh the token and reconnect.
+// TopStepX sends 'gatewaylogout' when the session is invalidated (another login,
+// token expired, maintenance). Both hubs fire simultaneously, so we coordinate
+// into a single reconnect cycle that:
+//   1. Invalidates the stale token cache
+//   2. Stops both hubs
+//   3. Fetches a fresh token via loginKey
+//   4. Reconnects both hubs with the fresh token
+//   5. Re-subscribes to all desired contracts
+// Backoff prevents infinite loops when another TopStepX client is fighting us.
+
+let _logoutTimestamps: number[] = []
+let _fullReconnectLock = false
 
 async function handleGatewayLogout(hubName: string) {
-  console.log(`[TopstepX WS] gatewaylogout received on ${hubName} hub — reconnecting with fresh token`)
-  broadcast({ type: 'disconnected', hub: hubName, reason: 'gatewaylogout' })
-
-  // Small delay to let the server-side cleanup finish
-  await new Promise((r) => setTimeout(r, 2000))
-
-  try {
-    if (hubName === 'user') {
-      await reconnectUserHub()
-    } else {
-      await reconnectMarketHub()
-    }
-  } catch (err) {
-    console.error(`[TopstepX WS] Failed to reconnect ${hubName} hub after gatewaylogout:`, err)
+  // Both hubs fire gatewaylogout simultaneously — only run the reconnect once
+  if (_fullReconnectLock) {
+    console.log(`[TopstepX WS] gatewaylogout on ${hubName} — reconnect already in progress, skipping`)
+    return
   }
-}
 
-async function reconnectUserHub() {
-  if (_userReconnecting) return
-  _userReconnecting = true
-  try {
-    if (_userHub) {
-      try { await _userHub.stop() } catch {}
-      _userHub = null
-    }
-    _userHub = await buildUserHub()
-    await _userHub.start()
-    broadcast({ type: 'connected', hub: 'user' })
-    console.log('[TopstepX WS] User hub reconnected after gatewaylogout')
-  } finally {
-    _userReconnecting = false
+  const now = Date.now()
+  _logoutTimestamps = _logoutTimestamps.filter((t) => now - t < 120_000)
+  _logoutTimestamps.push(now)
+
+  if (_logoutTimestamps.length > 5) {
+    console.error(`[TopstepX WS] ${_logoutTimestamps.length} gatewaylogouts in 2 min — backing off. Is TopStepX open in another app/browser?`)
+    broadcast({ type: 'error', hub: hubName, message: 'Session conflict detected — close other TopStepX sessions and reload' })
+    return
   }
-}
 
-async function reconnectMarketHub() {
-  if (_marketReconnecting) return
-  _marketReconnecting = true
+  _fullReconnectLock = true
+  const attempt = _logoutTimestamps.length
+  console.log(`[TopstepX WS] gatewaylogout on ${hubName} — coordinated reconnect (attempt ${attempt})`)
+  broadcast({ type: 'disconnected', hub: 'market', reason: 'gatewaylogout' })
+  broadcast({ type: 'disconnected', hub: 'user', reason: 'gatewaylogout' })
+
+  // Clear the stale token BEFORE reconnecting — this was the root cause of
+  // "Invocation canceled due to the underlying connection being closed"
+  invalidateTokenCache()
+
+  const delay = Math.min(2000 * attempt, 15_000)
+  await new Promise((r) => setTimeout(r, delay))
+
   try {
-    if (_marketHub) {
-      try { await _marketHub.stop() } catch {}
-      _marketHub = null
-    }
+    // Stop both hubs cleanly
+    if (_marketHub) { try { await _marketHub.stop() } catch {} }
+    _marketHub = null
     _subscribedContracts.clear()
 
+    if (_userHub) { try { await _userHub.stop() } catch {} }
+    _userHub = null
+
+    // Pre-fetch a fresh token so both hubs share the same session
+    const token = await getTopstepXToken()
+    console.log(`[TopstepX WS] Fresh token acquired (${token.slice(0, 12)}…), reconnecting hubs`)
+
+    // Reconnect market hub first (price streaming is the priority)
     _marketHub = await buildMarketHub()
     await _marketHub.start()
 
-    // Re-subscribe to everything SSE clients have requested (_desiredContracts).
     for (const contractId of Array.from(_desiredContracts)) {
       try {
         await _marketHub.invoke('SubscribeContractQuotes', contractId)
         _subscribedContracts.add(contractId)
-        console.log(`[TopstepX WS] Re-subscribed to quotes (sim): ${contractId}`)
+        console.log(`[TopstepX WS] Re-subscribed after gatewaylogout: ${contractId}`)
       } catch (err) {
         console.error(`[TopstepX WS] Failed to re-subscribe to ${contractId}:`, err)
       }
     }
     broadcast({ type: 'connected', hub: 'market' })
-    console.log('[TopstepX WS] Market hub reconnected after gatewaylogout')
+
+    // Reconnect user hub (same token, same session)
+    _userHub = await buildUserHub()
+    await _userHub.start()
+    broadcast({ type: 'connected', hub: 'user' })
+
+    console.log('[TopstepX WS] Both hubs reconnected after gatewaylogout')
+  } catch (err) {
+    console.error('[TopstepX WS] Failed to reconnect after gatewaylogout:', err)
   } finally {
-    _marketReconnecting = false
+    _fullReconnectLock = false
   }
 }
 
@@ -353,6 +366,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
 }
 
 export async function connectMarketHub(): Promise<void> {
+  if (_fullReconnectLock) return
   const state = _marketHub?.state
   if (state === signalR.HubConnectionState.Connected) return
   // If SignalR is already attempting its own auto-reconnect, don't interfere —
