@@ -100,7 +100,7 @@ export default function LoginPage() {
           fontFamily: 'monospace',
           lineHeight: 1.7,
         }}>
-          TopStep 100K Evaluation<br />
+          TopStep 50K Evaluation<br />
           NQ / MNQ ORB Dashboard
         </p>
 

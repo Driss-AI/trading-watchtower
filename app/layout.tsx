@@ -9,7 +9,7 @@ import { authOptions } from '@/lib/auth'
 
 export const metadata: Metadata = {
   title: 'Trading Watchtower',
-  description: 'NQ/MNQ ORB Risk Management System — TopStep 100K',
+  description: 'NQ/MNQ ORB Risk Management System — TopStep 50K',
 }
 
 export default async function RootLayout({

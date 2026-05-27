@@ -39,7 +39,7 @@ export default function SettingsPage() {
       <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>SETTINGS</h1>
-          <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>TopStep 100K evaluation configuration</p>
+          <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>TopStep 50K evaluation configuration</p>
         </div>
         <button onClick={save} disabled={saving} className="btn btn-primary">
           {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save Settings'}
@@ -49,11 +49,11 @@ export default function SettingsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         {/* Account */}
         <div className="card">
-          <div style={st.title}>01 · ACCOUNT — TOPSTEP 100K</div>
+          <div style={st.title}>01 · ACCOUNT — TOPSTEP 50K</div>
           <Field label="Account Size ($)" value={form.accountSize} onChange={v => set('accountSize', parseFloat(v))} type="number" />
-          <Field label="Daily Loss Limit ($)" value={form.dailyLossLimit} onChange={v => set('dailyLossLimit', parseFloat(v))} type="number" note="TopStep 100K = $2,000" />
-          <Field label="Trailing Drawdown ($)" value={form.trailingDrawdown} onChange={v => set('trailingDrawdown', parseFloat(v))} type="number" note="TopStep 100K = $3,000" />
-          <Field label="Profit Target ($)" value={form.profitTarget} onChange={v => set('profitTarget', parseFloat(v))} type="number" note="TopStep 100K = $6,000" />
+          <Field label="Daily Loss Limit ($)" value={form.dailyLossLimit} onChange={v => set('dailyLossLimit', parseFloat(v))} type="number" note="TopStep 50K = $1,000" />
+          <Field label="Trailing Drawdown ($)" value={form.trailingDrawdown} onChange={v => set('trailingDrawdown', parseFloat(v))} type="number" note="TopStep 50K = $2,000" />
+          <Field label="Profit Target ($)" value={form.profitTarget} onChange={v => set('profitTarget', parseFloat(v))} type="number" note="TopStep 50K = $3,000" />
         </div>
 
         {/* Risk Rules */}
