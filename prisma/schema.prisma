@@ -114,6 +114,7 @@ model Trade {
   // Status & source
   status        String   @default("OPEN") // "OPEN" | "WIN" | "LOSS" | "BE"
   source        String   @default("manual") // "manual" | "paper" | "topstepx"
+  aiReasoning   String?  // AI brain's reasoning for this trade
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

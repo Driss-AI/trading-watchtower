@@ -19,6 +19,16 @@ import {
 } from './topstepx-ws'
 import { getActiveMNQContractId } from './topstepx'
 import { calculateRisk, POINT_VALUES } from './scoring'
+import {
+  analyzePreSession,
+  analyzeOpeningRange,
+  analyzeBreakout,
+  type PreSessionDecision,
+  type ORAssessment,
+  type BreakoutDecision,
+} from './trading-ai'
+import { fetchMarketBriefing, fetchMacroSentiment } from './market-data'
+import { getSessionImpact } from './calendar-intel'
 
 const prisma = new PrismaClient()
 const MNQ_POINT_VALUE = POINT_VALUES['MNQ'] // $2 per point
@@ -57,6 +67,13 @@ interface EngineConfig {
   enableBreakevenStop: boolean
 }
 
+export interface AIState {
+  preSession: PreSessionDecision | null
+  orAssessment: ORAssessment | null
+  lastBreakout: BreakoutDecision | null
+  analysisInProgress: boolean
+}
+
 export interface PaperEngineState {
   enabled: boolean
   phase: 'idle' | 'forming' | 'monitoring' | 'closed'
@@ -73,6 +90,7 @@ export interface PaperEngineState {
   lastPrice: number
   todayTrades: ClosedPaperTrade[]
   config: EngineConfig
+  ai: AIState
 }
 
 // ─── MODULE STATE ────────────────────────────────────────────────────────────
@@ -105,6 +123,13 @@ let _config: EngineConfig = {
   sessionEndMinute: 690, // 11:30 AM ET
   enableBreakevenStop: false,
 }
+
+// AI state
+let _preSession: PreSessionDecision | null = null
+let _orAssessment: ORAssessment | null = null
+let _lastBreakout: BreakoutDecision | null = null
+let _aiAnalysisInProgress = false
+let _briefingCache: Awaited<ReturnType<typeof fetchMarketBriefing>> | null = null
 
 // Settings cache
 let _settings: {
@@ -183,6 +208,7 @@ function updatePhase(): void {
       _orLocked = true
       console.log(`[PaperEngine] OR locked: H=${_orHigh} L=${_orLow} Size=${(_orHigh - _orLow).toFixed(2)}`)
       persistOR()
+      runORAnalysis()
     }
     _phase = 'monitoring'
   } else {
@@ -206,6 +232,65 @@ async function persistOR(): Promise<void> {
     })
   } catch (err) {
     console.error('[PaperEngine] Failed to persist OR:', err)
+  }
+}
+
+// ─── AI ANALYSIS ────────────────────────────────────────────────────────────
+
+async function runPreSessionAnalysis(): Promise<void> {
+  if (_preSession) return
+  _aiAnalysisInProgress = true
+  console.log('[PaperEngine] Running AI pre-session analysis...')
+  try {
+    const [briefing, macro] = await Promise.all([
+      fetchMarketBriefing().catch(() => null),
+      fetchMacroSentiment().catch(() => null),
+    ])
+    _briefingCache = briefing
+
+    const calendarImpact = briefing?.news
+      ? getSessionImpact(briefing.news.map(e => ({ title: e.title, time: e.time, impact: e.impact })))
+      : null
+
+    _preSession = await analyzePreSession(briefing, macro, calendarImpact, {
+      dailyPnl: _dailyPnl,
+      tradesCount: _tradesCount,
+      lossesCount: _lossesCount,
+      trailingDrawdownRemaining: _settings ? _settings.dailyLossLimit * 2 : 2000,
+    })
+
+    if (_preSession.adjustments.bufferPoints != null) _config.bufferPoints = _preSession.adjustments.bufferPoints
+    if (_preSession.adjustments.targetMultiple != null) _config.targetMultiple = _preSession.adjustments.targetMultiple
+    if (_preSession.adjustments.maxContracts != null) _config.maxContracts = _preSession.adjustments.maxContracts
+
+    console.log(`[PaperEngine] AI pre-session: trade=${_preSession.shouldTrade} bias=${_preSession.bias} confidence=${_preSession.confidence}%`)
+  } catch (err) {
+    console.error('[PaperEngine] Pre-session AI failed:', err)
+  } finally {
+    _aiAnalysisInProgress = false
+  }
+}
+
+async function runORAnalysis(): Promise<void> {
+  if (!_orHigh || !_orLow) return
+  _aiAnalysisInProgress = true
+  console.log('[PaperEngine] Running AI OR assessment...')
+  try {
+    const preSession = _preSession ?? {
+      shouldTrade: true, bias: 'neutral' as const, confidence: 50,
+      reasoning: 'No pre-session analysis available', riskLevel: 'medium' as const,
+      adjustments: {}, keyFactors: [],
+    }
+
+    _orAssessment = await analyzeOpeningRange(
+      _orHigh, _orLow, _orHigh - _orLow, _lastPrice,
+      preSession, _briefingCache,
+    )
+    console.log(`[PaperEngine] AI OR: quality=${_orAssessment.quality} direction=${_orAssessment.preferredDirection}`)
+  } catch (err) {
+    console.error('[PaperEngine] OR AI failed:', err)
+  } finally {
+    _aiAnalysisInProgress = false
   }
 }
 
@@ -235,6 +320,10 @@ function checkDayReset(): void {
     _lossesCount = 0
     _todayTrades = []
     _phase = 'idle'
+    _preSession = null
+    _orAssessment = null
+    _lastBreakout = null
+    _briefingCache = null
   }
 }
 
@@ -287,7 +376,10 @@ function handleClosed(price: number): void {
 
 // ─── ENTRY LOGIC ─────────────────────────────────────────────────────────────
 
+let _entryLock = false
+
 function checkEntry(price: number): void {
+  if (_entryLock) return
   if (!_settings) return
   if (_orHigh === null || _orLow === null) return
 
@@ -295,6 +387,16 @@ function checkEntry(price: number): void {
   if (_tradesCount >= _settings.maxTradesPerDay) return
   if (_lossesCount >= _settings.maxLosingTradesPerDay) return
   if (Math.abs(_dailyPnl) >= _settings.dailyLossLimit) return
+
+  // AI pre-session says no trade
+  if (_preSession && !_preSession.shouldTrade) {
+    return
+  }
+
+  // AI OR assessment says no trade
+  if (_orAssessment && !_orAssessment.shouldTrade) {
+    return
+  }
 
   const orSize = _orHigh - _orLow
   const longTrigger = _orHigh + _config.bufferPoints
@@ -317,6 +419,22 @@ function checkEntry(price: number): void {
     return
   }
 
+  // AI direction filter: if AI has a directional bias, only take trades in that direction
+  if (_preSession && _preSession.bias !== 'neutral') {
+    const aiBias = _preSession.bias === 'long' ? 'LONG' : 'SHORT'
+    if (direction !== aiBias) {
+      console.log(`[PaperEngine] AI filtered: ${direction} trade blocked, bias is ${_preSession.bias}`)
+      return
+    }
+  }
+  if (_orAssessment && _orAssessment.preferredDirection !== 'either' && _orAssessment.preferredDirection !== 'none') {
+    const orBias = _orAssessment.preferredDirection === 'long' ? 'LONG' : 'SHORT'
+    if (direction !== orBias) {
+      console.log(`[PaperEngine] AI OR filtered: ${direction} trade blocked, OR prefers ${_orAssessment.preferredDirection}`)
+      return
+    }
+  }
+
   // Position sizing via risk calculator
   const riskCalc = calculateRisk({
     market: 'MNQ',
@@ -336,7 +454,67 @@ function checkEntry(price: number): void {
 
   const contracts = Math.min(_config.maxContracts, Math.max(1, riskCalc.maxContractsAllowed))
 
-  openPosition(direction, entryPrice, stopPrice, targetPrice, contracts)
+  // Consult AI for final breakout confirmation (async)
+  _entryLock = true
+  consultAIForBreakout(direction, entryPrice, stopPrice, targetPrice, contracts)
+    .finally(() => { _entryLock = false })
+}
+
+async function consultAIForBreakout(
+  direction: 'LONG' | 'SHORT',
+  entryPrice: number,
+  stopPrice: number,
+  targetPrice: number,
+  mechanicalContracts: number,
+): Promise<void> {
+  if (!_orHigh || !_orLow) return
+
+  const preSession = _preSession ?? {
+    shouldTrade: true, bias: 'neutral' as const, confidence: 50,
+    reasoning: 'No pre-session available', riskLevel: 'medium' as const,
+    adjustments: {}, keyFactors: [],
+  }
+  const orAssess = _orAssessment ?? {
+    quality: 'fair' as const, shouldTrade: true,
+    preferredDirection: 'either' as const, reasoning: 'No OR assessment available',
+  }
+
+  try {
+    _aiAnalysisInProgress = true
+    const decision = await analyzeBreakout(
+      direction, entryPrice, stopPrice, targetPrice,
+      _orHigh, _orLow, _orHigh - _orLow,
+      preSession, orAssess,
+      {
+        dailyPnl: _dailyPnl,
+        tradesCount: _tradesCount,
+        lossesCount: _lossesCount,
+        trailingDrawdownRemaining: _settings ? _settings.dailyLossLimit * 2 : 2000,
+      },
+    )
+    _lastBreakout = decision
+    _aiAnalysisInProgress = false
+
+    if (!decision.enter) {
+      console.log(`[PaperEngine] AI SKIPPED breakout: ${decision.reasoning}`)
+      return
+    }
+
+    const contracts = Math.min(decision.contracts || mechanicalContracts, _config.maxContracts)
+    const useEntry = _lastPrice > 0 ? _lastPrice : entryPrice
+
+    if (!_openTrade && _enabled && _phase === 'monitoring') {
+      console.log(`[PaperEngine] AI APPROVED entry: ${decision.reasoning}`)
+      await openPosition(direction, useEntry, decision.adjustedStop ?? stopPrice, decision.adjustedTarget ?? targetPrice, contracts)
+    }
+  } catch (err) {
+    console.error('[PaperEngine] AI breakout check failed, using mechanical entry:', err)
+    _aiAnalysisInProgress = false
+    _lastBreakout = { enter: true, reasoning: 'AI failed — mechanical fallback', confidence: 50, contracts: mechanicalContracts }
+    if (!_openTrade && _enabled && _phase === 'monitoring') {
+      await openPosition(direction, _lastPrice > 0 ? _lastPrice : entryPrice, stopPrice, targetPrice, mechanicalContracts)
+    }
+  }
 }
 
 // ─── EXIT LOGIC ──────────────────────────────────────────────────────────────
@@ -408,6 +586,13 @@ async function openPosition(
     })
   }
 
+  // Build AI reasoning summary
+  const aiParts: string[] = []
+  if (_preSession) aiParts.push(`Pre-session: ${_preSession.reasoning}`)
+  if (_orAssessment) aiParts.push(`OR: ${_orAssessment.quality} — ${_orAssessment.reasoning}`)
+  if (_lastBreakout) aiParts.push(`Breakout: ${_lastBreakout.reasoning}`)
+  const aiReasoning = aiParts.length > 0 ? aiParts.join(' | ') : null
+
   // Create trade record
   const trade = await prisma.trade.create({
     data: {
@@ -422,6 +607,7 @@ async function openPosition(
       target,
       status: 'OPEN',
       source: 'paper',
+      aiReasoning,
     },
   })
 
@@ -543,6 +729,11 @@ export async function startEngine(): Promise<void> {
 
   _enabled = true
   console.log('[PaperEngine] Running — waiting for trading hours')
+
+  // Run AI pre-session analysis in the background
+  runPreSessionAnalysis().catch(err =>
+    console.error('[PaperEngine] Pre-session analysis error:', err)
+  )
 }
 
 export async function stopEngine(): Promise<void> {
@@ -593,5 +784,11 @@ export function getEngineState(): PaperEngineState {
     lastPrice: _lastPrice,
     todayTrades: _todayTrades,
     config: { ..._config },
+    ai: {
+      preSession: _preSession,
+      orAssessment: _orAssessment,
+      lastBreakout: _lastBreakout,
+      analysisInProgress: _aiAnalysisInProgress,
+    },
   }
 }

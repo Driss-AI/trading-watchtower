@@ -25,6 +25,30 @@ interface ClosedTrade {
   exitTime: string
 }
 
+interface AIState {
+  preSession: {
+    shouldTrade: boolean
+    bias: 'long' | 'short' | 'neutral'
+    confidence: number
+    reasoning: string
+    riskLevel: 'low' | 'medium' | 'high' | 'extreme'
+    keyFactors: string[]
+  } | null
+  orAssessment: {
+    quality: 'excellent' | 'good' | 'fair' | 'poor'
+    shouldTrade: boolean
+    preferredDirection: 'long' | 'short' | 'either' | 'none'
+    reasoning: string
+  } | null
+  lastBreakout: {
+    enter: boolean
+    reasoning: string
+    confidence: number
+    contracts: number
+  } | null
+  analysisInProgress: boolean
+}
+
 interface EngineState {
   enabled: boolean
   phase: 'idle' | 'forming' | 'monitoring' | 'closed'
@@ -47,6 +71,7 @@ interface EngineState {
     sessionEndMinute: number
     enableBreakevenStop: boolean
   }
+  ai: AIState
 }
 
 const PHASE_LABELS: Record<string, { label: string; color: string }> = {
@@ -181,6 +206,9 @@ export default function PaperTrading() {
       {/* Only show details when engine is running */}
       {state.enabled && (
         <>
+          {/* AI Brain Panel */}
+          <AIPanel ai={state.ai} />
+
           {/* Opening Range + Price Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
             <MiniStat label="OR HIGH" value={state.orHigh?.toFixed(2) ?? '—'} color={state.orLocked ? 'var(--text-primary)' : 'var(--yellow)'} />
@@ -282,6 +310,141 @@ export default function PaperTrading() {
       {!state.enabled && (
         <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
           Start the engine to paper trade the ORB strategy on MNQ. Trades are simulated — no real orders placed.
+        </div>
+      )}
+    </div>
+  )
+}
+
+const BIAS_STYLES: Record<string, { color: string; label: string }> = {
+  long: { color: 'var(--green)', label: 'LONG BIAS' },
+  short: { color: 'var(--red)', label: 'SHORT BIAS' },
+  neutral: { color: 'var(--text-secondary)', label: 'NEUTRAL' },
+}
+
+const QUALITY_STYLES: Record<string, { color: string }> = {
+  excellent: { color: 'var(--green)' },
+  good: { color: 'var(--blue)' },
+  fair: { color: 'var(--yellow)' },
+  poor: { color: 'var(--red)' },
+}
+
+const RISK_STYLES: Record<string, { color: string }> = {
+  low: { color: 'var(--green)' },
+  medium: { color: 'var(--yellow)' },
+  high: { color: 'var(--red)' },
+  extreme: { color: 'var(--red)' },
+}
+
+function AIPanel({ ai }: { ai: AIState }) {
+  if (!ai.preSession && !ai.analysisInProgress) return null
+
+  return (
+    <div style={{
+      background: 'rgba(99,102,241,0.06)',
+      border: '1px solid rgba(99,102,241,0.2)',
+      borderRadius: '8px', padding: '14px 16px', marginBottom: '16px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <div style={{ fontSize: '10px', color: 'rgba(129,140,248,0.9)', letterSpacing: '0.08em', fontWeight: 700 }}>
+          AI BRAIN
+        </div>
+        {ai.analysisInProgress && (
+          <span style={{ fontSize: '10px', color: 'var(--yellow)', fontStyle: 'italic' }}>analyzing...</span>
+        )}
+      </div>
+
+      {/* Pre-Session Decision */}
+      {ai.preSession && (
+        <div style={{ marginBottom: ai.orAssessment ? '10px' : '0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <span style={{
+              fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em',
+              padding: '2px 8px', borderRadius: '4px',
+              background: ai.preSession.shouldTrade ? 'rgba(0,230,118,0.15)' : 'rgba(255,61,61,0.15)',
+              color: ai.preSession.shouldTrade ? 'var(--green)' : 'var(--red)',
+              border: `1px solid ${ai.preSession.shouldTrade ? 'rgba(0,230,118,0.3)' : 'rgba(255,61,61,0.3)'}`,
+            }}>
+              {ai.preSession.shouldTrade ? 'TRADE TODAY' : 'NO TRADE'}
+            </span>
+            <span style={{
+              fontSize: '10px', fontWeight: 600,
+              color: BIAS_STYLES[ai.preSession.bias]?.color ?? 'var(--text-secondary)',
+            }}>
+              {BIAS_STYLES[ai.preSession.bias]?.label ?? ai.preSession.bias}
+            </span>
+            <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+              {ai.preSession.confidence}% confidence
+            </span>
+            <span style={{
+              fontSize: '10px', fontWeight: 600,
+              color: RISK_STYLES[ai.preSession.riskLevel]?.color ?? 'var(--text-dim)',
+            }}>
+              {ai.preSession.riskLevel.toUpperCase()} RISK
+            </span>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+            {ai.preSession.reasoning}
+          </div>
+          {ai.preSession.keyFactors.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+              {ai.preSession.keyFactors.map((f, i) => (
+                <span key={i} style={{
+                  fontSize: '9px', color: 'var(--text-dim)', padding: '2px 6px',
+                  background: 'rgba(255,255,255,0.04)', borderRadius: '3px', border: '1px solid var(--border)',
+                }}>
+                  {f}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* OR Assessment */}
+      {ai.orAssessment && (
+        <div style={{ marginBottom: ai.lastBreakout ? '10px' : '0', paddingTop: '8px', borderTop: '1px solid rgba(99,102,241,0.15)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600 }}>OR QUALITY</span>
+            <span style={{
+              fontSize: '11px', fontWeight: 700,
+              color: QUALITY_STYLES[ai.orAssessment.quality]?.color ?? 'var(--text-primary)',
+            }}>
+              {ai.orAssessment.quality.toUpperCase()}
+            </span>
+            {ai.orAssessment.preferredDirection !== 'none' && ai.orAssessment.preferredDirection !== 'either' && (
+              <span style={{
+                fontSize: '10px', fontWeight: 600,
+                color: ai.orAssessment.preferredDirection === 'long' ? 'var(--green)' : 'var(--red)',
+              }}>
+                PREFER {ai.orAssessment.preferredDirection.toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            {ai.orAssessment.reasoning}
+          </div>
+        </div>
+      )}
+
+      {/* Last Breakout Decision */}
+      {ai.lastBreakout && (
+        <div style={{ paddingTop: '8px', borderTop: '1px solid rgba(99,102,241,0.15)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600 }}>BREAKOUT</span>
+            <span style={{
+              fontSize: '10px', fontWeight: 700,
+              color: ai.lastBreakout.enter ? 'var(--green)' : 'var(--red)',
+            }}>
+              {ai.lastBreakout.enter ? 'ENTERED' : 'SKIPPED'}
+            </span>
+            <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+              {ai.lastBreakout.confidence}% · {ai.lastBreakout.contracts} contract{ai.lastBreakout.contracts !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            {ai.lastBreakout.reasoning}
+          </div>
         </div>
       )}
     </div>
