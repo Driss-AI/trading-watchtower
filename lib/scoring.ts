@@ -222,7 +222,7 @@ export function calculateRisk(input: RiskCalcInput): RiskCalcResult {
   const riskPerContract = riskPts * pointValue
   const totalRisk = riskPerContract * input.contracts
   const totalReward = rewardPts * pointValue * input.contracts
-  const remainingDailyRisk = input.dailyLossLimit - Math.abs(input.currentDailyPnl)
+  const remainingDailyRisk = input.dailyLossLimit + input.currentDailyPnl
   const maxContractsAllowed = Math.floor(remainingDailyRisk / (riskPerContract || 1))
   const violatesLimit = totalRisk > remainingDailyRisk
 
