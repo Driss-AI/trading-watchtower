@@ -152,7 +152,7 @@ export async function fetchNQ(): Promise<NQData> {
     const contractId = await getActiveMNQContractId()
     const now = new Date()
     const start = new Date(now.getTime() - 2 * 60 * 60 * 1000)
-    const bars = await getMinuteBars(contractId, start, now, true, 150)
+    const bars = await getMinuteBars(contractId, start, now, false, 150)
     if (bars.length > 0) {
       const lastBar = bars[bars.length - 1]
       const price = lastBar.c
