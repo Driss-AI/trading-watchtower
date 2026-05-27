@@ -391,14 +391,21 @@ export async function subscribeToQuote(contractId: string): Promise<void> {
   _desiredContracts.add(contractId)
 
   if (!_marketHub || _marketHub.state !== signalR.HubConnectionState.Connected) {
-    // Hub is connecting or reconnecting — onreconnected / connectMarketHub will
-    // pick up _desiredContracts and invoke the subscription when ready.
+    console.log(`[TopstepX WS] subscribeToQuote deferred — hub state: ${_marketHub ? signalR.HubConnectionState[_marketHub.state] : 'null'}, will subscribe on reconnect`)
     return
   }
-  if (_subscribedContracts.has(contractId)) return
-  await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
-  _subscribedContracts.add(contractId)
-  console.log(`[TopstepX WS] Subscribed to quotes (sim): ${contractId}`)
+  if (_subscribedContracts.has(contractId)) {
+    console.log(`[TopstepX WS] Already subscribed (idempotent): ${contractId}`)
+    return
+  }
+  console.log(`[TopstepX WS] Invoking SubscribeContractQuotes for ${contractId}`)
+  try {
+    await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
+    _subscribedContracts.add(contractId)
+    console.log(`[TopstepX WS] Subscribed to quotes (sim): ${contractId}`)
+  } catch (err) {
+    console.error(`[TopstepX WS] SubscribeContractQuotes FAILED for ${contractId}:`, err)
+  }
 }
 
 export async function unsubscribeFromQuote(contractId: string): Promise<void> {
