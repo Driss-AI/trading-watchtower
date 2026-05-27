@@ -131,20 +131,27 @@ function broadcast(event: WSEvent) {
 }
 
 // Translate a raw ProjectX GatewayQuote payload to our WSQuote shape.
-// ProjectX sends: { symbol, symbolName, lastPrice, bestBid, bestAsk, change,
-//                   changePercent, open, high, low, volume, lastUpdated, timestamp }
+// ProjectX sends delta updates — after the first full snapshot, subsequent ticks
+// only include fields that changed. lastPrice is omitted when unchanged, causing
+// price=0. Fall back to the last known price, then bestBid as a proxy.
 function toWSQuote(contractId: string, raw: any): WSQuote {
+  const prev = _lastQuote.get(contractId)
+  const bid  = raw?.bestBid  != null ? Number(raw.bestBid)  : (prev?.bid  ?? 0)
+  const ask  = raw?.bestAsk  != null ? Number(raw.bestAsk)  : (prev?.ask  ?? 0)
+  const rawPrice = raw?.lastPrice != null ? Number(raw.lastPrice) : 0
+  // Use raw lastPrice if present, else last known price, else bestBid as proxy
+  const price = rawPrice > 0 ? rawPrice : (prev?.price ?? 0) > 0 ? prev!.price : bid
   return {
     contractId,
-    ask:          Number(raw?.bestAsk      ?? 0),
-    bid:          Number(raw?.bestBid      ?? 0),
-    price:        Number(raw?.lastPrice    ?? 0),
-    open:         Number(raw?.open         ?? 0),
-    change:       Number(raw?.change       ?? 0),
-    changePct:    Number(raw?.changePercent ?? 0),
-    volume:       Number(raw?.volume       ?? 0),
-    sessionHigh:  Number(raw?.high         ?? 0),
-    sessionLow:   Number(raw?.low          ?? 0),
+    ask,
+    bid,
+    price,
+    open:         Number(raw?.open         ?? prev?.open         ?? 0),
+    change:       Number(raw?.change       ?? prev?.change       ?? 0),
+    changePct:    Number(raw?.changePercent ?? prev?.changePct   ?? 0),
+    volume:       Number(raw?.volume       ?? prev?.volume       ?? 0),
+    sessionHigh:  Number(raw?.high         ?? prev?.sessionHigh  ?? 0),
+    sessionLow:   Number(raw?.low          ?? prev?.sessionLow  ?? 0),
     timestamp:    String(raw?.timestamp ?? raw?.lastUpdated ?? new Date().toISOString()),
   }
 }
