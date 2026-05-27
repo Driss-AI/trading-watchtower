@@ -10,34 +10,48 @@ const BASE_URL = process.env.TOPSTEPX_BASE_URL ?? 'https://api.topstepx.com'
 
 // ─── TOKEN CACHE ─────────────────────────────────────────────────────────────
 let _tokenCache: { token: string; expiresAt: number } | null = null
+// In-flight lock: concurrent callers all await the same loginKey request instead
+// of each spawning a separate session (TopStepX invalidates older sessions via
+// gatewaylogout when a new login arrives, causing a continuous reconnect loop).
+let _tokenFetching: Promise<string> | null = null
 
 export async function getTopstepXToken(): Promise<string> {
   if (_tokenCache && Date.now() < _tokenCache.expiresAt - 30 * 60 * 1000) {
     return _tokenCache.token
   }
+  if (_tokenFetching) return _tokenFetching
 
-  const userName = process.env.TOPSTEPX_USERNAME ?? ''
-  const apiKey   = process.env.TOPSTEPX_API_KEY   ?? ''
+  _tokenFetching = (async () => {
+    // Re-check cache inside the lock — another caller may have populated it.
+    if (_tokenCache && Date.now() < _tokenCache.expiresAt - 30 * 60 * 1000) {
+      return _tokenCache.token
+    }
 
-  if (!userName || !apiKey) {
-    throw new Error('TopstepX not configured. Set TOPSTEPX_USERNAME and TOPSTEPX_API_KEY in Railway Variables.')
-  }
+    const userName = process.env.TOPSTEPX_USERNAME ?? ''
+    const apiKey   = process.env.TOPSTEPX_API_KEY   ?? ''
 
-  const res = await fetch(`${BASE_URL}/api/Auth/loginKey`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ userName, apiKey }),
-    cache: 'no-store',
-  })
+    if (!userName || !apiKey) {
+      throw new Error('TopstepX not configured. Set TOPSTEPX_USERNAME and TOPSTEPX_API_KEY in Railway Variables.')
+    }
 
-  if (!res.ok) throw new Error(`TopstepX auth HTTP ${res.status}: ${await res.text()}`)
+    const res = await fetch(`${BASE_URL}/api/Auth/loginKey`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ userName, apiKey }),
+      cache: 'no-store',
+    })
 
-  const data = await res.json()
-  if (!data.success) throw new Error(`TopstepX auth failed (${data.errorCode}): ${data.errorMessage}`)
+    if (!res.ok) throw new Error(`TopstepX auth HTTP ${res.status}: ${await res.text()}`)
 
-  _tokenCache = { token: data.token, expiresAt: Date.now() + 23.5 * 60 * 60 * 1000 }
-  console.log('[TopstepX] Token refreshed')
-  return data.token
+    const data = await res.json()
+    if (!data.success) throw new Error(`TopstepX auth failed (${data.errorCode}): ${data.errorMessage}`)
+
+    _tokenCache = { token: data.token, expiresAt: Date.now() + 23.5 * 60 * 60 * 1000 }
+    console.log('[TopstepX] Token refreshed')
+    return data.token
+  })().finally(() => { _tokenFetching = null })
+
+  return _tokenFetching
 }
 
 // ─── AUTHENTICATED POST ───────────────────────────────────────────────────────

@@ -242,8 +242,8 @@ async function buildUserHub(): Promise<signalR.HubConnection> {
     broadcast({ type: 'order', data })
   })
 
-  // Handle TopStepX session invalidation
-  hub.on('gatewaylogout', () => handleGatewayLogout('user'))
+  // SignalR normalises event names to lowercase — registering both 'gatewaylogout'
+  // and 'GatewayLogout' fires the handler TWICE per event. Keep only one.
   hub.on('GatewayLogout', () => handleGatewayLogout('user'))
 
   hub.onreconnected(() => broadcast({ type: 'connected', hub: 'user' }))
@@ -295,6 +295,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
 
   // ⚠️  Market Hub events take TWO args: (contractId, payload).
   // User Hub events take ONE arg. Don't confuse them.
+  let _quoteLogCount = 0
   hub.on('GatewayQuote', (contractId: string, raw: unknown) => {
     const parsed = RawQuoteSchema.safeParse(raw)
     if (!parsed.success) {
@@ -304,6 +305,11 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
     const data = toWSQuote(contractId, parsed.data)
     _lastQuote.set(contractId, data)
     broadcast({ type: 'quote', data })
+    // Log the first 3 quotes per hub instance to confirm flow without spamming
+    if (_quoteLogCount < 3) {
+      _quoteLogCount++
+      console.log(`[TopstepX WS] GatewayQuote #${_quoteLogCount}: ${contractId} price=${data.price} bid=${data.bid} ask=${data.ask}`)
+    }
   })
 
   hub.on('GatewayTrade', (_contractId: string, _raw: any) => {
@@ -315,8 +321,6 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
     // Same — DOM events not currently surfaced.
   })
 
-  // Handle TopStepX session invalidation
-  hub.on('gatewaylogout', () => handleGatewayLogout('market'))
   hub.on('GatewayLogout', () => handleGatewayLogout('market'))
 
   hub.onreconnected(async () => {
