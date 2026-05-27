@@ -204,7 +204,7 @@ async function reconnectMarketHub() {
     // Re-subscribe to everything SSE clients have requested (_desiredContracts).
     for (const contractId of Array.from(_desiredContracts)) {
       try {
-        await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
+        await _marketHub.invoke('SubscribeContractQuotes', contractId)
         _subscribedContracts.add(contractId)
         console.log(`[TopstepX WS] Re-subscribed to quotes (sim): ${contractId}`)
       } catch (err) {
@@ -333,7 +333,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
     _subscribedContracts.clear()
     for (const contractId of Array.from(_desiredContracts)) {
       try {
-        await hub.invoke('SubscribeContractQuotes', contractId, false)
+        await hub.invoke('SubscribeContractQuotes', contractId)
         _subscribedContracts.add(contractId)
         console.log(`[TopstepX WS] Re-subscribed after auto-reconnect: ${contractId}`)
       } catch {}
@@ -400,7 +400,7 @@ export async function subscribeToQuote(contractId: string): Promise<void> {
   }
   console.log(`[TopstepX WS] Invoking SubscribeContractQuotes for ${contractId}`)
   try {
-    await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
+    await _marketHub.invoke('SubscribeContractQuotes', contractId)
     _subscribedContracts.add(contractId)
     console.log(`[TopstepX WS] Subscribed to quotes (sim): ${contractId}`)
   } catch (err) {
