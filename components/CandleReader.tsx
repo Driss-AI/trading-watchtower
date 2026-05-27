@@ -14,16 +14,45 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
 
   const currentCandle = useRef<Candle | null>(null)
   const prevPrice     = useRef<number | null>(null)
+  const tickBuffer    = useRef<{ price: number; ts: number }[]>([])
 
   const getIntervalStart = useCallback((ts: number) =>
     Math.floor(ts / (timeframe * 60 * 1000)) * (timeframe * 60 * 1000)
   , [timeframe])
+
+  const buildCandlesFromTicks = useCallback((ticks: { price: number; ts: number }[], tf: number) => {
+    const intervalMs = tf * 60 * 1000
+    const getStart = (ts: number) => Math.floor(ts / intervalMs) * intervalMs
+    const candleMap = new Map<number, Candle>()
+    for (const { price, ts } of ticks) {
+      const start = getStart(ts)
+      const existing = candleMap.get(start)
+      if (!existing) {
+        candleMap.set(start, { open: price, high: price, low: price, close: price, time: start, ticks: 1 })
+      } else {
+        existing.high = Math.max(existing.high, price)
+        existing.low = Math.min(existing.low, price)
+        existing.close = price
+        existing.ticks++
+      }
+    }
+    const sorted = Array.from(candleMap.values()).sort((a, b) => a.time - b.time)
+    if (sorted.length === 0) return { completed: [], live: null }
+    const live = sorted.pop()!
+    return { completed: sorted.slice(-20), live }
+  }, [])
 
   const processTick = useCallback((price: number) => {
     if (price <= 0) return
     if (prevPrice.current !== null) setPriceDir(price > prevPrice.current ? 'up' : price < prevPrice.current ? 'down' : null)
     prevPrice.current = price
     setLastPrice(price)
+    tickBuffer.current.push({ price, ts: Date.now() })
+    // Keep last 2 hours of ticks
+    const cutoff = Date.now() - 2 * 60 * 60 * 1000
+    if (tickBuffer.current.length > 0 && tickBuffer.current[0].ts < cutoff) {
+      tickBuffer.current = tickBuffer.current.filter(t => t.ts >= cutoff)
+    }
     const intervalStart = getIntervalStart(Date.now())
     if (!currentCandle.current || currentCandle.current.time !== intervalStart) {
       if (currentCandle.current) {
@@ -38,9 +67,17 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
   }, [getIntervalStart])
 
   useEffect(() => {
-    setCandles([]); setLiveCandle(null); setSelectedIdx(null)
-    currentCandle.current = null; prevPrice.current = null
-  }, [timeframe])
+    setSelectedIdx(null)
+    if (tickBuffer.current.length === 0) {
+      setCandles([]); setLiveCandle(null)
+      currentCandle.current = null
+      return
+    }
+    const { completed, live } = buildCandlesFromTicks(tickBuffer.current, timeframe)
+    setCandles(completed)
+    setLiveCandle(live)
+    currentCandle.current = live
+  }, [timeframe, buildCandlesFromTicks])
 
   useEffect(() => {
     const es = new EventSource('/api/topstepx/stream?hub=market&symbol=MNQ')
