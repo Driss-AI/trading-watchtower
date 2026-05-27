@@ -29,6 +29,16 @@ import {
 } from './trading-ai'
 import { fetchMarketBriefing, fetchMacroSentiment } from './market-data'
 import { getSessionImpact } from './calendar-intel'
+import { sendTelegramAlert } from './telegram'
+
+// ─── TELEGRAM HELPER ────────────────────────────────────────────────────────
+
+function notify(message: string): void {
+  const token = process.env.TELEGRAM_BOT_TOKEN ?? ''
+  const chatId = process.env.TELEGRAM_CHAT_ID ?? ''
+  if (!token || !chatId) return
+  sendTelegramAlert({ botToken: token, chatId }, message).catch(() => {})
+}
 
 const prisma = new PrismaClient()
 const MNQ_POINT_VALUE = POINT_VALUES['MNQ'] // $2 per point
@@ -91,6 +101,49 @@ export interface PaperEngineState {
   todayTrades: ClosedPaperTrade[]
   config: EngineConfig
   ai: AIState
+}
+
+// ─── DB WRITE QUEUE (resilience for Postgres outages) ───────────────────────
+
+interface PendingWrite {
+  fn: () => Promise<void>
+  label: string
+  retries: number
+}
+
+const _writeQueue: PendingWrite[] = []
+const MAX_RETRIES = 5
+
+async function safeDbWrite(label: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn()
+    if (_writeQueue.length > 0) drainWriteQueue()
+  } catch (err) {
+    console.error(`[PaperEngine] DB write failed (${label}):`, err)
+    _writeQueue.push({ fn, label, retries: 0 })
+    notify(`⚠️ <b>DB WRITE FAILED</b>\n${label}\nQueued for retry (${_writeQueue.length} pending)`)
+  }
+}
+
+async function drainWriteQueue(): Promise<void> {
+  if (_writeQueue.length === 0) return
+  const batch = [..._writeQueue]
+  _writeQueue.length = 0
+
+  for (const item of batch) {
+    try {
+      await item.fn()
+      console.log(`[PaperEngine] Retry succeeded: ${item.label}`)
+    } catch {
+      item.retries++
+      if (item.retries < MAX_RETRIES) {
+        _writeQueue.push(item)
+      } else {
+        console.error(`[PaperEngine] Giving up on write after ${MAX_RETRIES} retries: ${item.label}`)
+        notify(`🔴 <b>DB WRITE LOST</b>\n${item.label}\nFailed after ${MAX_RETRIES} retries`)
+      }
+    }
+  }
 }
 
 // ─── MODULE STATE ────────────────────────────────────────────────────────────
@@ -179,8 +232,9 @@ async function loadSettings() {
         accountSize: s.accountSize,
       }
     }
-  } catch {
-    // Use defaults if DB not available
+  } catch (err) {
+    console.error('[PaperEngine] DB settings load failed, using defaults:', err)
+    notify(`⚠️ <b>DB SETTINGS FAILED</b>\nUsing 50K defaults (DLL=$1000, max 2 trades)`)
     _settings = {
       dailyLossLimit: 1000,
       maxTradesPerDay: 2,
@@ -206,7 +260,9 @@ function updatePhase(): void {
     // 10:00 AM – session end: monitoring
     if (!_orLocked && _orHigh !== null && _orLow !== null) {
       _orLocked = true
-      console.log(`[PaperEngine] OR locked: H=${_orHigh} L=${_orLow} Size=${(_orHigh - _orLow).toFixed(2)}`)
+      const orSize = (_orHigh - _orLow).toFixed(2)
+      console.log(`[PaperEngine] OR locked: H=${_orHigh} L=${_orLow} Size=${orSize}`)
+      notify(`🔒 <b>OR LOCKED</b>\nHigh: ${_orHigh} | Low: ${_orLow}\nSize: ${orSize} pts`)
       persistOR()
       runORAnalysis()
     }
@@ -224,15 +280,14 @@ function updatePhase(): void {
 async function persistOR(): Promise<void> {
   if (_orHigh === null || _orLow === null) return
   const today = getToday()
-  try {
+  const orH = _orHigh, orL = _orLow
+  await safeDbWrite(`Persist OR: H=${orH} L=${orL}`, async () => {
     await prisma.session.upsert({
       where: { date: today },
-      update: { orHigh: _orHigh, orLow: _orLow, orSize: _orHigh - _orLow },
-      create: { date: today, market: 'MNQ', orHigh: _orHigh, orLow: _orLow, orSize: _orHigh - _orLow },
+      update: { orHigh: orH, orLow: orL, orSize: orH - orL },
+      create: { date: today, market: 'MNQ', orHigh: orH, orLow: orL, orSize: orH - orL },
     })
-  } catch (err) {
-    console.error('[PaperEngine] Failed to persist OR:', err)
-  }
+  })
 }
 
 // ─── AI ANALYSIS ────────────────────────────────────────────────────────────
@@ -264,8 +319,15 @@ async function runPreSessionAnalysis(): Promise<void> {
     if (_preSession.adjustments.maxContracts != null) _config.maxContracts = _preSession.adjustments.maxContracts
 
     console.log(`[PaperEngine] AI pre-session: trade=${_preSession.shouldTrade} bias=${_preSession.bias} confidence=${_preSession.confidence}%`)
+    const verdict = _preSession.shouldTrade ? '✅ TRADE TODAY' : '🚫 NO TRADE'
+    notify(
+      `🧠 <b>PRE-SESSION ANALYSIS</b>\n${verdict}\n` +
+      `Bias: <b>${_preSession.bias.toUpperCase()}</b> | Confidence: ${_preSession.confidence}%\n` +
+      `Risk: ${_preSession.riskLevel}\n${_preSession.reasoning}`
+    )
   } catch (err) {
     console.error('[PaperEngine] Pre-session AI failed:', err)
+    notify(`⚠️ <b>PRE-SESSION AI FAILED</b>\nEngine will use mechanical rules as fallback`)
   } finally {
     _aiAnalysisInProgress = false
   }
@@ -287,8 +349,15 @@ async function runORAnalysis(): Promise<void> {
       preSession, _briefingCache,
     )
     console.log(`[PaperEngine] AI OR: quality=${_orAssessment.quality} direction=${_orAssessment.preferredDirection}`)
+    notify(
+      `📊 <b>OR ASSESSMENT</b>\n` +
+      `Quality: <b>${_orAssessment.quality.toUpperCase()}</b>\n` +
+      `Direction: ${_orAssessment.preferredDirection} | Trade: ${_orAssessment.shouldTrade ? 'YES' : 'NO'}\n` +
+      `${_orAssessment.reasoning}`
+    )
   } catch (err) {
     console.error('[PaperEngine] OR AI failed:', err)
+    notify(`⚠️ <b>OR ANALYSIS FAILED</b>\nUsing mechanical OR assessment`)
   } finally {
     _aiAnalysisInProgress = false
   }
@@ -324,14 +393,24 @@ function checkDayReset(): void {
     _orAssessment = null
     _lastBreakout = null
     _briefingCache = null
+    _sessionSummarySent = false
   }
 }
 
 // ─── TICK PROCESSOR ──────────────────────────────────────────────────────────
 
+let _lastDrainTime = 0
+
 function processTick(quote: WSQuote): void {
   if (quote.price <= 0) return
   _lastPrice = quote.price
+
+  // Retry failed DB writes every 30 seconds
+  const now = Date.now()
+  if (_writeQueue.length > 0 && now - _lastDrainTime > 30_000) {
+    _lastDrainTime = now
+    drainWriteQueue().catch(() => {})
+  }
 
   checkDayReset()
   updatePhase()
@@ -367,10 +446,24 @@ function handleMonitoring(price: number): void {
   checkEntry(price)
 }
 
+let _sessionSummarySent = false
+
 function handleClosed(price: number): void {
   if (_openTrade) {
     console.log(`[PaperEngine] Session end — closing open position at ${price}`)
     closePosition(price, 'session_end')
+  }
+
+  if (!_sessionSummarySent && _tradesCount > 0) {
+    _sessionSummarySent = true
+    const winRate = _tradesCount > 0 ? Math.round((_winsCount / _tradesCount) * 100) : 0
+    notify(
+      `📋 <b>SESSION SUMMARY</b>\n` +
+      `Trades: ${_tradesCount} | Wins: ${_winsCount} | Losses: ${_lossesCount}\n` +
+      `Win Rate: ${winRate}%\n` +
+      `P&L: $${_dailyPnl >= 0 ? '+' : ''}${_dailyPnl.toFixed(2)}\n` +
+      (_orHigh && _orLow ? `OR: ${_orHigh} / ${_orLow} (${(_orHigh - _orLow).toFixed(2)} pts)` : '')
+    )
   }
 }
 
@@ -386,7 +479,7 @@ function checkEntry(price: number): void {
   // Risk guards
   if (_tradesCount >= _settings.maxTradesPerDay) return
   if (_lossesCount >= _settings.maxLosingTradesPerDay) return
-  if (Math.abs(_dailyPnl) >= _settings.dailyLossLimit) return
+  if (_dailyPnl <= -_settings.dailyLossLimit) return
 
   // AI pre-session says no trade
   if (_preSession && !_preSession.shouldTrade) {
@@ -497,6 +590,7 @@ async function consultAIForBreakout(
 
     if (!decision.enter) {
       console.log(`[PaperEngine] AI SKIPPED breakout: ${decision.reasoning}`)
+      notify(`⏭️ <b>BREAKOUT SKIPPED</b>\n${direction} @ ${entryPrice}\n${decision.reasoning}`)
       return
     }
 
@@ -584,13 +678,17 @@ async function openPosition(
 
   console.log(`[PaperEngine] ENTRY: ${direction} ${contracts} MNQ @ ${entry} | Stop=${stop} Target=${target}`)
 
-  // Find or create today's session
-  let session = await prisma.session.findUnique({ where: { date: today } })
-  if (!session) {
-    session = await prisma.session.create({
-      data: { date: today, market: 'MNQ', orHigh: _orHigh, orLow: _orLow, orSize: _orHigh && _orLow ? _orHigh - _orLow : null },
-    })
-  }
+  const riskPts = Math.abs(entry - stop)
+  const riskDollars = riskPts * MNQ_POINT_VALUE * contracts
+  const rewardPts = Math.abs(target - entry)
+
+  notify(
+    `${direction === 'LONG' ? '🟢' : '🔴'} <b>PAPER TRADE ENTRY</b>\n` +
+    `${direction} ${contracts} MNQ @ ${entry}\n` +
+    `Stop: ${stop} | Target: ${target}\n` +
+    `Risk: ${riskPts.toFixed(1)}pts ($${riskDollars.toFixed(0)}) | Reward: ${rewardPts.toFixed(1)}pts\n` +
+    `⏰ ${timeStr}`
+  )
 
   // Build AI reasoning summary
   const aiParts: string[] = []
@@ -599,26 +697,10 @@ async function openPosition(
   if (_lastBreakout) aiParts.push(`Breakout: ${_lastBreakout.reasoning}`)
   const aiReasoning = aiParts.length > 0 ? aiParts.join(' | ') : null
 
-  // Create trade record
-  const trade = await prisma.trade.create({
-    data: {
-      sessionId: session.id,
-      date: today,
-      time: timeStr,
-      market: 'MNQ',
-      direction,
-      contracts,
-      entry,
-      stop,
-      target,
-      status: 'OPEN',
-      source: 'paper',
-      aiReasoning,
-    },
-  })
-
+  // Optimistic in-memory tracking — DB write may be queued if Postgres is down
+  const tempId = `paper_${Date.now()}`
   _openTrade = {
-    dbId: trade.id,
+    dbId: tempId,
     direction,
     entryPrice: entry,
     stopPrice: stop,
@@ -628,8 +710,38 @@ async function openPosition(
     livePnlPts: 0,
     livePnlDollars: 0,
   }
-
   _tradesCount++
+
+  // Write to DB with resilience
+  await safeDbWrite(`Create trade: ${direction} ${contracts}@${entry}`, async () => {
+    let session = await prisma.session.findUnique({ where: { date: today } })
+    if (!session) {
+      session = await prisma.session.create({
+        data: { date: today, market: 'MNQ', orHigh: _orHigh, orLow: _orLow, orSize: _orHigh && _orLow ? _orHigh - _orLow : null },
+      })
+    }
+
+    const trade = await prisma.trade.create({
+      data: {
+        sessionId: session.id,
+        date: today,
+        time: timeStr,
+        market: 'MNQ',
+        direction,
+        contracts,
+        entry,
+        stop,
+        target,
+        status: 'OPEN',
+        source: 'paper',
+        aiReasoning,
+      },
+    })
+
+    if (_openTrade && _openTrade.dbId === tempId) {
+      _openTrade.dbId = trade.id
+    }
+  })
 }
 
 async function closePosition(exitPrice: number, reason: 'stop' | 'target' | 'session_end'): Promise<void> {
@@ -649,26 +761,17 @@ async function closePosition(exitPrice: number, reason: 'stop' | 'target' | 'ses
 
   console.log(`[PaperEngine] EXIT (${reason}): ${_openTrade.direction} @ ${exitPrice} | P&L=${pnlPts.toFixed(2)}pts $${pnlDollars.toFixed(2)} | ${status}`)
 
-  // Update trade in DB
-  try {
-    await prisma.trade.update({
-      where: { id: _openTrade.dbId },
-      data: {
-        exit: exitPrice,
-        resultPts: parseFloat(pnlPts.toFixed(2)),
-        resultDollars: parseFloat(pnlDollars.toFixed(2)),
-        resultR: parseFloat(resultR.toFixed(2)),
-        grossPnl: parseFloat(pnlDollars.toFixed(2)),
-        tradeFees: 0,
-        status,
-        notes: `Paper trade — exit reason: ${reason}`,
-      },
-    })
-  } catch (err) {
-    console.error('[PaperEngine] Failed to update trade:', err)
-  }
+  const emoji = status === 'WIN' ? '💰' : status === 'LOSS' ? '💔' : '➖'
+  notify(
+    `${emoji} <b>PAPER TRADE EXIT</b> — ${status}\n` +
+    `${_openTrade.direction} ${_openTrade.contracts} MNQ\n` +
+    `Entry: ${_openTrade.entryPrice} → Exit: ${exitPrice}\n` +
+    `P&L: ${pnlPts >= 0 ? '+' : ''}${pnlPts.toFixed(2)} pts ($${pnlDollars >= 0 ? '+' : ''}${pnlDollars.toFixed(2)})\n` +
+    `Reason: ${reason} | R: ${resultR >= 0 ? '+' : ''}${resultR.toFixed(1)}R\n` +
+    `Daily P&L: $${(_dailyPnl + pnlDollars) >= 0 ? '+' : ''}${(_dailyPnl + pnlDollars).toFixed(2)}`
+  )
 
-  // Update daily stats
+  // Update daily stats (in-memory — always works)
   _dailyPnl += pnlDollars
   if (status === 'WIN') _winsCount++
   if (status === 'LOSS') _lossesCount++
@@ -685,8 +788,28 @@ async function closePosition(exitPrice: number, reason: 'stop' | 'target' | 'ses
     exitTime: formatNYTime(),
   })
 
-  // Update session daily P&L
-  try {
+  // DB writes with resilience
+  const tradeDbId = _openTrade.dbId
+  const tradeDirection = _openTrade.direction
+
+  await safeDbWrite(`Close trade: ${tradeDirection} exit@${exitPrice} ${status}`, async () => {
+    if (tradeDbId.startsWith('paper_')) return
+    await prisma.trade.update({
+      where: { id: tradeDbId },
+      data: {
+        exit: exitPrice,
+        resultPts: parseFloat(pnlPts.toFixed(2)),
+        resultDollars: parseFloat(pnlDollars.toFixed(2)),
+        resultR: parseFloat(resultR.toFixed(2)),
+        grossPnl: parseFloat(pnlDollars.toFixed(2)),
+        tradeFees: 0,
+        status,
+        notes: `Paper trade — exit reason: ${reason}`,
+      },
+    })
+  })
+
+  await safeDbWrite(`Update session P&L: $${_dailyPnl.toFixed(2)}`, async () => {
     const today = getToday()
     await prisma.session.update({
       where: { date: today },
@@ -696,7 +819,7 @@ async function closePosition(exitPrice: number, reason: 'stop' | 'target' | 'ses
         losesCount: _lossesCount,
       },
     })
-  } catch {}
+  })
 
   _openTrade = null
 }
@@ -720,6 +843,7 @@ export async function startEngine(): Promise<void> {
     console.log(`[PaperEngine] Subscribed to ${_contractId}`)
   } catch (err) {
     console.error('[PaperEngine] Failed to connect to market stream:', err)
+    notify(`🔴 <b>ENGINE START FAILED</b>\nCould not connect to MNQ stream\n${String(err)}`)
     return
   }
 
@@ -735,6 +859,7 @@ export async function startEngine(): Promise<void> {
 
   _enabled = true
   console.log('[PaperEngine] Running — waiting for trading hours')
+  notify(`🟢 <b>ENGINE STARTED</b>\nSubscribed to MNQ (${_contractId})\n⏰ ${formatNYTime()}`)
 
   // Run AI pre-session analysis in the background
   runPreSessionAnalysis().catch(err =>
@@ -760,6 +885,11 @@ export async function stopEngine(): Promise<void> {
   _enabled = false
   _phase = 'idle'
   console.log('[PaperEngine] Stopped')
+
+  const summary = _tradesCount > 0
+    ? `Trades: ${_tradesCount} | W/L: ${_winsCount}/${_lossesCount} | P&L: $${_dailyPnl >= 0 ? '+' : ''}${_dailyPnl.toFixed(2)}`
+    : 'No trades today'
+  notify(`🔴 <b>ENGINE STOPPED</b>\n${summary}\n⏰ ${formatNYTime()}`)
 }
 
 export function configureEngine(config: Partial<EngineConfig>): void {
