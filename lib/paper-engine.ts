@@ -119,7 +119,7 @@ let _todayDate = ''
 let _config: EngineConfig = {
   bufferPoints: 3,
   targetMultiple: 1.5,
-  maxContracts: 2,
+  maxContracts: 5,
   sessionEndMinute: 690, // 11:30 AM ET
   enableBreakevenStop: false,
 }
@@ -500,7 +500,13 @@ async function consultAIForBreakout(
       return
     }
 
-    const contracts = Math.min(decision.contracts || mechanicalContracts, _config.maxContracts)
+    // AI picks contracts, but risk calculator and hard rules get final say
+    let contracts = Math.min(decision.contracts || mechanicalContracts, _config.maxContracts)
+    if (_lossesCount > 0) contracts = Math.min(contracts, 2)
+    const remainingBudget = _settings ? _settings.dailyLossLimit + _dailyPnl : 1000
+    const riskPerContract = Math.abs(entryPrice - stopPrice) * MNQ_POINT_VALUE
+    if (riskPerContract > 0) contracts = Math.min(contracts, Math.floor(remainingBudget / riskPerContract))
+    contracts = Math.max(1, contracts)
     const useEntry = _lastPrice > 0 ? _lastPrice : entryPrice
 
     if (!_openTrade && _enabled && _phase === 'monitoring') {

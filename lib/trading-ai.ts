@@ -33,6 +33,7 @@ COMBINE RULES (non-negotiable):
 - Max 2 trades per day
 - Max 2 losing trades per day
 - MNQ point value: $2 per point per contract
+- Max contracts allowed: 5 MNQ
 
 STRATEGY: Opening Range Breakout (ORB) on MNQ
 - Opening range: 9:30-10:00 AM ET
@@ -47,19 +48,36 @@ YOUR PRIORITY ORDER:
 3. Trade WITH the trend — macro alignment is mandatory
 4. Compound small wins — $100-200/day passes the combine in 15-30 days
 
+POSITION SIZING (1-5 MNQ contracts):
+You must intelligently scale position size based on setup quality and risk.
+The key formula: contracts × stop_distance × $2 = dollar risk per trade.
+This dollar risk must NEVER exceed daily loss remaining.
+
+SIZING GUIDE:
+- 1 contract: Low confidence (<65%), after a loss, high VIX (>22), wide OR (>150pts), conflicting signals, drawdown within $600 of limit
+- 2 contracts: Moderate confidence (65-74%), decent setup but some uncertainty, elevated VIX (18-22), OR 100-150 pts
+- 3 contracts: Good confidence (75-84%), solid macro alignment, clean OR (60-100 pts), calendar clear, VIX normal
+- 4 contracts: High confidence (85-92%), everything aligned, ideal OR (50-80 pts), VIX low (12-16), strong trend day
+- 5 contracts: Maximum conviction (93%+), A++ setup, perfect macro alignment, ideal OR, no news, VIX <15, first trade of day with no losses — RARE, maybe 1-2 days/month
+
+CRITICAL SIZING RULES:
+- ALWAYS check: contracts × stop_distance_pts × $2 < remaining daily loss budget
+- After 1 loss: MAX 2 contracts regardless of setup quality
+- Trailing drawdown within $800: MAX 2 contracts
+- Trailing drawdown within $400: MAX 1 contract
+- Never size up after a loss — only maintain or reduce
+- If daily P&L is positive, you can size slightly more aggressively (house money effect)
+- If daily P&L is negative, reduce size proportionally
+
 WHEN TO SKIP (NO TRADE):
 - FOMC, CPI, NFP, GDP days — zero exceptions
 - VIX > 30 — too volatile for a combine account
 - OR size < 20 or > 250 points — too narrow (no room) or too wide (stop too far)
 - Macro signals strongly conflict — if half say bullish and half say bearish, sit out
-- After 1 loss, require A++ setup. After 2 losses, stop for the day.
+- After 2 losses, stop for the day.
 - Friday afternoon — avoid weekend gap risk
 
-WHEN TO BE AGGRESSIVE:
-- Calendar clear + VIX 12-18 + strong macro alignment + clean OR (50-120 pts)
-- These are the A+ days — take the trade with full size
-
-Always explain your reasoning concisely. Be specific about what data drove each decision.`
+Always explain your reasoning concisely. Be specific about what data drove each decision, especially the contract count.`
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
 
@@ -238,7 +256,12 @@ export async function analyzeBreakout(
   const rrRatio = riskPts > 0 ? rewardPts / riskPts : 0
   const riskDollars = riskPts * 2 // $2/pt per contract
 
-  const prompt = `BREAKOUT TRIGGERED — make a fast decision.
+  const dailyBudgetRemaining = 1000 + accountState.dailyPnl
+  const maxContractsByRisk = riskDollars > 0 ? Math.floor(dailyBudgetRemaining / riskDollars) : 1
+  const maxContractsByDrawdown = riskDollars > 0 ? Math.floor(accountState.trailingDrawdownRemaining / riskDollars) : 1
+  const hardCap = Math.min(5, maxContractsByRisk, maxContractsByDrawdown)
+
+  const prompt = `BREAKOUT TRIGGERED — decide entry and position size.
 
 SIGNAL:
 - Direction: ${direction}
@@ -248,23 +271,30 @@ SIGNAL:
 - R:R Ratio: ${rrRatio.toFixed(2)}:1
 - OR: ${orHigh.toFixed(2)} / ${orLow.toFixed(2)} (${orSize.toFixed(1)} pts)
 
+POSITION SIZING MATH:
+- Risk per contract: $${riskDollars.toFixed(0)}
+- 1 contract = $${riskDollars.toFixed(0)} risk
+- 2 contracts = $${(riskDollars * 2).toFixed(0)} risk
+- 3 contracts = $${(riskDollars * 3).toFixed(0)} risk
+- 4 contracts = $${(riskDollars * 4).toFixed(0)} risk
+- 5 contracts = $${(riskDollars * 5).toFixed(0)} risk
+- MAX SAFE: ${hardCap} contracts (limited by daily budget $${dailyBudgetRemaining.toFixed(0)} and drawdown $${accountState.trailingDrawdownRemaining.toFixed(0)})
+
 ACCOUNT STATE:
 - Daily P&L: $${accountState.dailyPnl.toFixed(0)}
+- Daily loss budget remaining: $${dailyBudgetRemaining.toFixed(0)}
 - Trades today: ${accountState.tradesCount}/2
 - Losses today: ${accountState.lossesCount}/2
 - Trailing drawdown remaining: $${accountState.trailingDrawdownRemaining.toFixed(0)}
 
-PRE-SESSION: bias=${preSession.bias}, confidence=${preSession.confidence}%, risk=${preSession.riskLevel}
-OR QUALITY: ${orAssessment.quality}, preferred=${orAssessment.preferredDirection}
+CONTEXT:
+- Pre-session: bias=${preSession.bias}, confidence=${preSession.confidence}%, risk=${preSession.riskLevel}
+- OR quality: ${orAssessment.quality}, preferred=${orAssessment.preferredDirection}
+${accountState.lossesCount > 0 ? '- WARNING: Already took a loss today — max 2 contracts after a loss' : ''}
+${accountState.trailingDrawdownRemaining < 800 ? '- DANGER: Drawdown within $800 — max 2 contracts' : ''}
+${accountState.trailingDrawdownRemaining < 400 ? '- CRITICAL: Drawdown within $400 — max 1 contract only' : ''}
 
-CRITICAL CHECKS:
-1. Does ${direction} align with pre-session bias (${preSession.bias})?
-2. Is R:R >= 1.5:1?
-3. Would a loss here breach daily limit ($${(1000 + accountState.dailyPnl).toFixed(0)} remaining)?
-4. Is the OR assessment favorable?
-5. Has the AI confidence been high enough today?
-
-Enter or skip? If entering, how many contracts (1 or 2)?`
+Enter or skip? If entering, choose contracts (1-${hardCap}) based on confidence and risk.`
 
   try {
     const response = await getClient().messages.create({
@@ -314,7 +344,7 @@ const preSessionTool: Anthropic.Tool = {
       },
       confidence: {
         type: 'number',
-        description: 'Confidence level 0-100. Below 60 = skip. 60-79 = cautious (1 contract). 80+ = full size.',
+        description: 'Confidence level 0-100. Below 60 = skip. 60-74 = 1-2 contracts. 75-84 = 2-3. 85-92 = 3-4. 93+ = up to 5.',
       },
       reasoning: {
         type: 'string',
@@ -330,7 +360,7 @@ const preSessionTool: Anthropic.Tool = {
         properties: {
           bufferPoints: { type: 'number', description: 'Override buffer (default 3). Increase on volatile days.' },
           targetMultiple: { type: 'number', description: 'Override target multiple (default 1.5x). Decrease on choppy days.' },
-          maxContracts: { type: 'number', description: 'Override max contracts (default 2). Reduce to 1 on high-risk days.' },
+          maxContracts: { type: 'number', description: 'Daily max contracts (1-5). Scale with conditions: 1=danger, 2=cautious, 3=normal, 4=confident, 5=A++ only.' },
         },
       },
       keyFactors: {
@@ -374,7 +404,7 @@ const orAssessmentTool: Anthropic.Tool = {
 
 const breakoutTool: Anthropic.Tool = {
   name: 'breakout_decision',
-  description: 'Decide whether to enter a breakout trade',
+  description: 'Decide whether to enter a breakout trade and how many contracts',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -384,15 +414,15 @@ const breakoutTool: Anthropic.Tool = {
       },
       reasoning: {
         type: 'string',
-        description: 'Concise reasoning (1-2 sentences).',
+        description: 'Concise reasoning (2-3 sentences). Must explain the contract count choice with specific dollar risk math.',
       },
       confidence: {
         type: 'number',
-        description: 'Confidence 0-100.',
+        description: 'Confidence 0-100. Drives sizing: <60=skip, 60-74=1-2, 75-84=2-3, 85-92=3-4, 93+=up to 5.',
       },
       contracts: {
         type: 'number',
-        description: 'Number of contracts (1 or 2).',
+        description: 'Number of MNQ contracts (1-5). MUST respect risk limits: contracts × risk_per_contract < daily budget remaining. After a loss, max 2.',
       },
     },
     required: ['enter', 'reasoning', 'confidence', 'contracts'],
