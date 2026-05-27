@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 interface OpenTrade {
   dbId: string
@@ -60,6 +60,8 @@ export default function PaperTrading() {
   const [state, setState] = useState<EngineState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [livePrice, setLivePrice] = useState<number>(0)
+  const evtSourceRef = useRef<EventSource | null>(null)
 
   const fetchState = useCallback(async () => {
     try {
@@ -76,6 +78,28 @@ export default function PaperTrading() {
     const interval = setInterval(fetchState, 2000)
     return () => clearInterval(interval)
   }, [fetchState])
+
+  useEffect(() => {
+    if (!state?.enabled) {
+      if (evtSourceRef.current) {
+        evtSourceRef.current.close()
+        evtSourceRef.current = null
+      }
+      return
+    }
+    const es = new EventSource('/api/topstepx/stream?hub=market&symbol=MNQ')
+    evtSourceRef.current = es
+    es.onmessage = (ev) => {
+      try {
+        const payload = JSON.parse(ev.data)
+        if (payload?.type === 'quote' && payload?.data) {
+          const price = Number(payload.data.price || 0)
+          if (price > 0) setLivePrice(price)
+        }
+      } catch {}
+    }
+    return () => { es.close(); evtSourceRef.current = null }
+  }, [state?.enabled])
 
   async function sendAction(action: string) {
     setLoading(true)
@@ -162,11 +186,18 @@ export default function PaperTrading() {
             <MiniStat label="OR HIGH" value={state.orHigh?.toFixed(2) ?? '—'} color={state.orLocked ? 'var(--text-primary)' : 'var(--yellow)'} />
             <MiniStat label="OR LOW" value={state.orLow?.toFixed(2) ?? '—'} color={state.orLocked ? 'var(--text-primary)' : 'var(--yellow)'} />
             <MiniStat label="OR SIZE" value={state.orSize?.toFixed(2) ?? '—'} />
-            <MiniStat label="LAST PRICE" value={state.lastPrice > 0 ? state.lastPrice.toFixed(2) : '—'} color="var(--blue)" />
+            <MiniStat label="LAST PRICE" value={(livePrice || state.lastPrice) > 0 ? (livePrice || state.lastPrice).toFixed(2) : '—'} color="var(--blue)" />
           </div>
 
           {/* Open Position */}
-          {state.openTrade && (
+          {state.openTrade && (() => {
+            const currentPrice = livePrice || state.lastPrice
+            const ptsRaw = state.openTrade!.direction === 'LONG'
+              ? currentPrice - state.openTrade!.entryPrice
+              : state.openTrade!.entryPrice - currentPrice
+            const livePts = livePrice > 0 ? ptsRaw : state.openTrade!.livePnlPts
+            const liveDollars = livePrice > 0 ? ptsRaw * state.openTrade!.contracts * 2 : state.openTrade!.livePnlDollars
+            return (
             <div style={{
               background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
               borderRadius: '8px', padding: '14px 16px', marginBottom: '16px',
@@ -175,29 +206,30 @@ export default function PaperTrading() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{
                     fontSize: '12px', fontWeight: 700,
-                    color: state.openTrade.direction === 'LONG' ? 'var(--green)' : 'var(--red)',
+                    color: state.openTrade!.direction === 'LONG' ? 'var(--green)' : 'var(--red)',
                   }}>
-                    {state.openTrade.direction === 'LONG' ? 'LONG' : 'SHORT'} {state.openTrade.contracts} MNQ
+                    {state.openTrade!.direction === 'LONG' ? 'LONG' : 'SHORT'} {state.openTrade!.contracts} MNQ
                   </span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>@ {state.openTrade.entryPrice.toFixed(2)}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>@ {state.openTrade!.entryPrice.toFixed(2)}</span>
                 </div>
                 <div style={{
                   fontFamily: 'IBM Plex Mono, monospace', fontSize: '18px', fontWeight: 700,
-                  color: state.openTrade.livePnlDollars >= 0 ? 'var(--green)' : 'var(--red)',
+                  color: liveDollars >= 0 ? 'var(--green)' : 'var(--red)',
                 }}>
-                  {state.openTrade.livePnlDollars >= 0 ? '+' : ''}{state.openTrade.livePnlDollars.toFixed(2)}
+                  {liveDollars >= 0 ? '+' : ''}{liveDollars.toFixed(2)}
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '4px' }}>
-                    ({state.openTrade.livePnlPts >= 0 ? '+' : ''}{state.openTrade.livePnlPts.toFixed(2)}pts)
+                    ({livePts >= 0 ? '+' : ''}{livePts.toFixed(2)}pts)
                   </span>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                <MiniStat label="STOP" value={state.openTrade.stopPrice.toFixed(2)} color="var(--red)" />
-                <MiniStat label="TARGET" value={state.openTrade.targetPrice.toFixed(2)} color="var(--green)" />
-                <MiniStat label="ENTRY" value={state.openTrade.entryTime} />
+                <MiniStat label="STOP" value={state.openTrade!.stopPrice.toFixed(2)} color="var(--red)" />
+                <MiniStat label="TARGET" value={state.openTrade!.targetPrice.toFixed(2)} color="var(--green)" />
+                <MiniStat label="ENTRY" value={state.openTrade!.entryTime} />
               </div>
             </div>
-          )}
+            )
+          })()}
 
           {/* Daily Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
