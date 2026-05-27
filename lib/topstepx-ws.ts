@@ -108,6 +108,10 @@ const _subscribedContracts = new Set<string>()
 // Last-known quote per contract (so a new SSE client gets an immediate value)
 const _lastQuote = new Map<string, WSQuote>()
 
+// Promise-based locks — prevent concurrent connect() calls from racing
+let _userConnecting:   Promise<void> | null = null
+let _marketConnecting: Promise<void> | null = null
+
 // Guard against overlapping reconnect attempts
 let _userReconnecting = false
 let _marketReconnecting = false
@@ -251,15 +255,17 @@ async function buildUserHub(): Promise<signalR.HubConnection> {
 
 export async function connectUserHub(): Promise<void> {
   if (_userHub?.state === signalR.HubConnectionState.Connected) return
+  if (_userConnecting) return _userConnecting
 
-  if (_userHub) {
-    try { await _userHub.stop() } catch {}
-  }
+  _userConnecting = (async () => {
+    if (_userHub) { try { await _userHub.stop() } catch {} }
+    _userHub = await buildUserHub()
+    await _userHub.start()
+    broadcast({ type: 'connected', hub: 'user' })
+    console.log('[TopstepX WS] User hub connected')
+  })().finally(() => { _userConnecting = null })
 
-  _userHub = await buildUserHub()
-  await _userHub.start()
-  broadcast({ type: 'connected', hub: 'user' })
-  console.log('[TopstepX WS] User hub connected')
+  return _userConnecting
 }
 
 export async function disconnectUserHub(): Promise<void> {
@@ -327,15 +333,17 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
 
 export async function connectMarketHub(): Promise<void> {
   if (_marketHub?.state === signalR.HubConnectionState.Connected) return
+  if (_marketConnecting) return _marketConnecting
 
-  if (_marketHub) {
-    try { await _marketHub.stop() } catch {}
-  }
+  _marketConnecting = (async () => {
+    if (_marketHub) { try { await _marketHub.stop() } catch {} }
+    _marketHub = await buildMarketHub()
+    await _marketHub.start()
+    broadcast({ type: 'connected', hub: 'market' })
+    console.log('[TopstepX WS] Market hub connected')
+  })().finally(() => { _marketConnecting = null })
 
-  _marketHub = await buildMarketHub()
-  await _marketHub.start()
-  broadcast({ type: 'connected', hub: 'market' })
-  console.log('[TopstepX WS] Market hub connected')
+  return _marketConnecting
 }
 
 export async function disconnectMarketHub(): Promise<void> {
