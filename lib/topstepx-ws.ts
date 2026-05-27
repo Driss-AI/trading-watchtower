@@ -104,7 +104,13 @@ export type WSEventHandler = (event: WSEvent) => void
 let _userHub:   signalR.HubConnection | null = null
 let _marketHub: signalR.HubConnection | null = null
 const _handlers = new Set<WSEventHandler>()
+
+// _desiredContracts — what SSE clients have asked to subscribe to. Persists
+// across hub reconnects so every new hub instance can re-subscribe.
+// _subscribedContracts — what is actually subscribed on the CURRENT hub instance.
+const _desiredContracts    = new Set<string>()
 const _subscribedContracts = new Set<string>()
+
 // Last-known quote per contract (so a new SSE client gets an immediate value)
 const _lastQuote = new Map<string, WSQuote>()
 
@@ -186,7 +192,6 @@ async function reconnectMarketHub() {
   if (_marketReconnecting) return
   _marketReconnecting = true
   try {
-    const contractsToResubscribe = Array.from(_subscribedContracts)
     if (_marketHub) {
       try { await _marketHub.stop() } catch {}
       _marketHub = null
@@ -195,11 +200,9 @@ async function reconnectMarketHub() {
 
     _marketHub = await buildMarketHub()
     await _marketHub.start()
-    broadcast({ type: 'connected', hub: 'market' })
-    console.log('[TopstepX WS] Market hub reconnected after gatewaylogout')
 
-    // Re-subscribe to all contracts
-    for (const contractId of contractsToResubscribe) {
+    // Re-subscribe to everything SSE clients have requested (_desiredContracts).
+    for (const contractId of Array.from(_desiredContracts)) {
       try {
         await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
         _subscribedContracts.add(contractId)
@@ -208,6 +211,8 @@ async function reconnectMarketHub() {
         console.error(`[TopstepX WS] Failed to re-subscribe to ${contractId}:`, err)
       }
     }
+    broadcast({ type: 'connected', hub: 'market' })
+    console.log('[TopstepX WS] Market hub reconnected after gatewaylogout')
   } finally {
     _marketReconnecting = false
   }
@@ -324,11 +329,16 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
   hub.on('GatewayLogout', () => handleGatewayLogout('market'))
 
   hub.onreconnected(async () => {
-    broadcast({ type: 'connected', hub: 'market' })
-    // Re-subscribe to all contracts after reconnect
-    for (const contractId of Array.from(_subscribedContracts)) {
-      try { await hub.invoke('SubscribeContractQuotes', contractId, false) } catch {}
+    // Re-subscribe to all desired contracts after SignalR auto-reconnect.
+    _subscribedContracts.clear()
+    for (const contractId of Array.from(_desiredContracts)) {
+      try {
+        await hub.invoke('SubscribeContractQuotes', contractId, false)
+        _subscribedContracts.add(contractId)
+        console.log(`[TopstepX WS] Re-subscribed after auto-reconnect: ${contractId}`)
+      } catch {}
     }
+    broadcast({ type: 'connected', hub: 'market' })
   })
   hub.onclose((err) => broadcast({ type: 'disconnected', hub: 'market', reason: err?.message }))
 
@@ -336,11 +346,23 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
 }
 
 export async function connectMarketHub(): Promise<void> {
-  if (_marketHub?.state === signalR.HubConnectionState.Connected) return
+  const state = _marketHub?.state
+  if (state === signalR.HubConnectionState.Connected) return
+  // If SignalR is already attempting its own auto-reconnect, don't interfere —
+  // stopping the hub here would cancel that reconnect and restart the 30s cycle.
+  if (state === signalR.HubConnectionState.Reconnecting) return
+  if (state === signalR.HubConnectionState.Connecting) return
   if (_marketConnecting) return _marketConnecting
 
   _marketConnecting = (async () => {
+    // Re-check inside the lock
+    const s = _marketHub?.state
+    if (s === signalR.HubConnectionState.Connected) return
+    if (s === signalR.HubConnectionState.Reconnecting) return
     if (_marketHub) { try { await _marketHub.stop() } catch {} }
+    // Clear stale subscription tracking so subscribeToQuote() will re-invoke
+    // SubscribeContractQuotes on the new hub instead of returning early.
+    _subscribedContracts.clear()
     _marketHub = await buildMarketHub()
     await _marketHub.start()
     broadcast({ type: 'connected', hub: 'market' })
@@ -365,23 +387,27 @@ export function getMarketHubState(): string {
 // ─── CONTRACT SUBSCRIPTIONS ───────────────────────────────────────────────────
 
 export async function subscribeToQuote(contractId: string): Promise<void> {
+  // Register intent — persists across hub restarts so every new hub can re-subscribe.
+  _desiredContracts.add(contractId)
+
   if (!_marketHub || _marketHub.state !== signalR.HubConnectionState.Connected) {
-    throw new Error('Market hub not connected — call connectMarketHub() first')
+    // Hub is connecting or reconnecting — onreconnected / connectMarketHub will
+    // pick up _desiredContracts and invoke the subscription when ready.
+    return
   }
-  // Idempotent — if already subscribed, don't re-invoke.
   if (_subscribedContracts.has(contractId)) return
-  // live=false → sim/evaluation data feed (correct for TopStep combine accounts)
   await _marketHub.invoke('SubscribeContractQuotes', contractId, false)
   _subscribedContracts.add(contractId)
   console.log(`[TopstepX WS] Subscribed to quotes (sim): ${contractId}`)
 }
 
 export async function unsubscribeFromQuote(contractId: string): Promise<void> {
-  if (_marketHub?.state === signalR.HubConnectionState.Connected) {
-    await _marketHub.invoke('UnsubscribeContractQuotes', contractId)
-  }
+  _desiredContracts.delete(contractId)
   _subscribedContracts.delete(contractId)
   _lastQuote.delete(contractId)
+  if (_marketHub?.state === signalR.HubConnectionState.Connected) {
+    try { await _marketHub.invoke('UnsubscribeContractQuotes', contractId) } catch {}
+  }
 }
 
 export function getLastQuote(contractId: string): WSQuote | null {
