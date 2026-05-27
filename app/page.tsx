@@ -8,6 +8,7 @@ import LivePosition from '@/components/LivePosition'
 import LiveStats from '@/components/LiveStats'
 import ORBAlerts from '@/components/ORBAlerts'
 import CandleReader from '@/components/CandleReader'
+import PaperTrading from '@/components/PaperTrading'
 
 interface Session {
   id: string; date: string; market: string; score: number; decision: string
@@ -78,6 +79,9 @@ export default function Dashboard() {
 
       {/* ── Row 2: ORB Alerts — full width ── */}
       <ORBAlerts />
+
+      {/* ── Row 2.5: Paper Trading Engine ── */}
+      <PaperTrading />
 
       {/* ── Row 3: Candle Reader (left) + Macro Sentiment (right) ── */}
       <div style={{

@@ -14,10 +14,10 @@ datasource db {
 
 model Settings {
   id                  Int     @id @default(1)
-  accountSize         Float   @default(100000)
-  dailyLossLimit      Float   @default(2000)
-  trailingDrawdown    Float   @default(3000)
-  profitTarget        Float   @default(6000)
+  accountSize         Float   @default(50000)
+  dailyLossLimit      Float   @default(1000)
+  trailingDrawdown    Float   @default(2000)
+  profitTarget        Float   @default(3000)
   maxTradesPerDay     Int     @default(2)
   maxLosingTradesPerDay Int   @default(2)
   mnqEnabled          Boolean @default(true)
@@ -111,8 +111,9 @@ model Trade {
   mistakeNotes  String?  @default("")
   notes         String?  @default("")
 
-  // Status
+  // Status & source
   status        String   @default("OPEN") // "OPEN" | "WIN" | "LOSS" | "BE"
+  source        String   @default("manual") // "manual" | "paper" | "topstepx"
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
