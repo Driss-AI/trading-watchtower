@@ -22,6 +22,38 @@ interface MacroBias {
 
 interface Bar { t: string; o: number; h: number; l: number; c: number; v: number }
 
+interface VolumeSignal {
+  multiple: number        // breakoutVol / avgORVol
+  rating: 'high' | 'moderate' | 'low'
+}
+
+// ─── VOLUME HELPERS ───────────────────────────────────────────────────────────
+// The SSE stream sends cumulative session volume on each tick.
+// We bucket ticks by minute during the OR window (9:30–10:00 ET),
+// compute per-minute deltas, and use the 20-period SMA as the baseline.
+// On breakout the first tick's volume delta vs the last OR minute avg = multiple.
+
+function getMinuteKey(nyH: number, nyM: number) {
+  return nyH * 100 + nyM
+}
+
+function calcVolumeMultiple(
+  orMinuteDeltas: Map<number, number>,   // minute-key → volume delta for that minute
+  breakoutDelta: number,                  // volume printed in the breakout minute
+): number | null {
+  if (orMinuteDeltas.size === 0 || breakoutDelta <= 0) return null
+  const deltas = Array.from(orMinuteDeltas.values()).filter(v => v > 0)
+  if (deltas.length === 0) return null
+  const avg = deltas.reduce((s, v) => s + v, 0) / deltas.length
+  return avg > 0 ? parseFloat((breakoutDelta / avg).toFixed(2)) : null
+}
+
+function rateVolume(multiple: number): VolumeSignal['rating'] {
+  if (multiple >= 2.0) return 'high'
+  if (multiple >= 1.5) return 'moderate'
+  return 'low'
+}
+
 interface CandleSignal {
   loading:        boolean
   bodyStrength:   number   // -1 = no data
@@ -162,16 +194,23 @@ export default function ORBAlerts() {
   const [breakout,      setBreakout]      = useState<BreakoutDirection>(null)
   const [breakoutPrice, setBreakoutPrice] = useState<number | null>(null)
   const [breakoutTime,  setBreakoutTime]  = useState<string | null>(null)
+  const [lateEntry,     setLateEntry]     = useState(false)
+  const [volumeSignal,  setVolumeSignal]  = useState<VolumeSignal | null>(null)
   const [dismissed,     setDismissed]     = useState(false)
   const [macroBias,     setMacroBias]     = useState<MacroBias | null>(null)
   const [phase,         setPhase]         = useState<'pre' | 'forming' | 'monitoring' | 'closed'>('pre')
   const [candleSignal,  setCandleSignal]  = useState<CandleSignal | null>(null)
 
-  const breakoutFiredRef = useRef(false)
-  const orHighRef        = useRef<number | null>(null)
-  const orLowRef         = useRef<number | null>(null)
-  const signalFetchedRef = useRef(false)
-  const evtSourceRef     = useRef<EventSource | null>(null)
+  const breakoutFiredRef   = useRef(false)
+  const orHighRef          = useRef<number | null>(null)
+  const orLowRef           = useRef<number | null>(null)
+  const signalFetchedRef   = useRef(false)
+  const evtSourceRef       = useRef<EventSource | null>(null)
+  // Volume tracking: cumulative vol → per-minute delta map during OR window
+  const lastVolRef         = useRef<number | null>(null)  // last seen cumulative volume
+  const orMinuteDeltasRef  = useRef<Map<number, number>>(new Map())
+  const curMinuteKeyRef    = useRef<number | null>(null)
+  const curMinuteVolRef    = useRef<number>(0)
 
   // ─── LOAD OR ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -271,9 +310,39 @@ export default function ORBAlerts() {
       try {
         const event = JSON.parse(e.data)
         if (event.type === 'quote' && event.data?.price > 0) {
-          const price = event.data.price
+          const price  = event.data.price
+          const cumVol: number | undefined = event.data?.volume
           setLivePrice(price)
           const ny = getNYTime()
+
+          // ── Volume tracking during OR formation window (9:30–10:00 ET) ──────
+          // Accumulate per-minute volume deltas so we can compute avg later.
+          if (ny.totalMin >= 570 && ny.totalMin < 600 && cumVol != null && cumVol > 0) {
+            const minuteKey = getMinuteKey(ny.h, ny.m)
+            if (lastVolRef.current !== null && cumVol > lastVolRef.current) {
+              const delta = cumVol - lastVolRef.current
+              if (minuteKey !== curMinuteKeyRef.current) {
+                // New minute — save the accumulated delta for the previous minute
+                if (curMinuteKeyRef.current !== null) {
+                  orMinuteDeltasRef.current.set(curMinuteKeyRef.current, curMinuteVolRef.current)
+                }
+                curMinuteKeyRef.current = minuteKey
+                curMinuteVolRef.current = delta
+              } else {
+                curMinuteVolRef.current += delta
+              }
+            }
+            lastVolRef.current = cumVol
+          }
+
+          // Flush the last minute when OR locks at 10:00
+          if (ny.totalMin === 600 && curMinuteKeyRef.current !== null && curMinuteVolRef.current > 0) {
+            orMinuteDeltasRef.current.set(curMinuteKeyRef.current, curMinuteVolRef.current)
+            curMinuteKeyRef.current = null
+            curMinuteVolRef.current = 0
+          }
+
+          // ── OR high/low tracking ───────────────────────────────────────────
           if (ny.totalMin >= 570 && ny.totalMin < 600) {
             let changed = false
             if (orHighRef.current === null || price > orHighRef.current) {
@@ -359,23 +428,33 @@ export default function ORBAlerts() {
     if (breakoutFiredRef.current) return
     if (phase !== 'monitoring') return
     const BUFFER = 2
-    if (livePrice > orHigh + BUFFER) {
-      breakoutFiredRef.current = true
-      setBreakout('LONG')
-      setBreakoutPrice(livePrice)
-      setBreakoutTime(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }))
-      setDismissed(false)
-      playAlert()
-      fetchCandleSignal('LONG', orHigh, orLow)
-    } else if (livePrice < orLow - BUFFER) {
-      breakoutFiredRef.current = true
-      setBreakout('SHORT')
-      setBreakoutPrice(livePrice)
-      setBreakoutTime(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }))
-      setDismissed(false)
-      playAlert()
-      fetchCandleSignal('SHORT', orHigh, orLow)
+    const dir: BreakoutDirection =
+      livePrice > orHigh + BUFFER ? 'LONG' :
+      livePrice < orLow  - BUFFER ? 'SHORT' :
+      null
+    if (!dir) return
+
+    breakoutFiredRef.current = true
+    const ny = getNYTime()
+
+    // ── Late entry: breakout after 10:30 AM ET ────────────────────────────
+    const isLate = ny.totalMin > 630   // 10:30 = 630 minutes
+    setLateEntry(isLate)
+
+    // ── Volume multiple ───────────────────────────────────────────────────
+    // Use the running current-minute volume as the breakout minute delta
+    const breakoutDelta = curMinuteVolRef.current > 0 ? curMinuteVolRef.current : 0
+    const multiple = calcVolumeMultiple(orMinuteDeltasRef.current, breakoutDelta)
+    if (multiple !== null) {
+      setVolumeSignal({ multiple, rating: rateVolume(multiple) })
     }
+
+    setBreakout(dir)
+    setBreakoutPrice(livePrice)
+    setBreakoutTime(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }))
+    setDismissed(false)
+    playAlert()
+    fetchCandleSignal(dir, orHigh, orLow)
   }, [livePrice, orLocked, orHigh, orLow, phase, fetchCandleSignal])
 
   // ─── SAVE OR TO DB ───────────────────────────────────────────────────────
@@ -531,6 +610,27 @@ export default function ORBAlerts() {
                 <span style={{ color: breakoutAligned ? 'var(--green)' : breakoutAligned === false ? 'var(--yellow)' : 'var(--text-secondary)' }}>
                   {breakoutAligned ? '✓ Aligned — GO' : breakoutAligned === false ? '⚠ Counter-trend — caution' : '— Neutral'}
                 </span>
+              </div>
+            )}
+            {/* Volume signal */}
+            {volumeSignal && (
+              <div style={{ marginTop: '6px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: 'var(--text-dim)' }}>Volume:</span>
+                <span style={{
+                  fontWeight: '700',
+                  color: volumeSignal.rating === 'high' ? 'var(--green)' : volumeSignal.rating === 'moderate' ? 'var(--yellow)' : 'var(--red)',
+                }}>
+                  {volumeSignal.multiple}x {volumeSignal.rating === 'high' ? '✓' : volumeSignal.rating === 'low' ? '⚠' : ''}
+                </span>
+                <span style={{ color: 'var(--text-dim)' }}>
+                  {volumeSignal.rating === 'high' ? '— High-conviction breakout' : volumeSignal.rating === 'moderate' ? '— Moderate confirmation' : '— Low volume, fakeout risk'}
+                </span>
+              </div>
+            )}
+            {/* Late entry warning */}
+            {lateEntry && (
+              <div style={{ marginTop: '6px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--yellow)' }}>
+                ⚠ Late entry — European close at 10:30 ET increases reversal risk
               </div>
             )}
           </div>

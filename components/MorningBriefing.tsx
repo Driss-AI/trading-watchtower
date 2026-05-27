@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 // ─── Local types (mirror the API shapes returned by /api/market-data) ─────────
 interface VIXData {
@@ -30,10 +31,17 @@ interface NQData {
   changePct: number
   source?: 'topstep' | 'yahoo'
 }
+interface IBSData {
+  value: number
+  bias: 'long_caution' | 'short_caution' | 'neutral'
+}
+
 interface MarketBriefing {
   vix: VIXData | null
   qqq: QQQData | null
   nq: NQData | null
+  ibs: IBSData | null
+  vwap: number | null
   news: Array<{ time?: string; title?: string; impact?: string }> | null
   hasHighImpactNewsToday?: boolean
   marketStatus?: unknown
@@ -48,9 +56,6 @@ interface LiveQuote {
   timestamp: string
 }
 
-// Poll for slow-moving data (VIX/QQQ) every 30 seconds; the NQ tile gets its
-// updates from the SSE stream at /api/topstepx/stream?hub=market&symbol=MNQ.
-const BRIEFING_REFRESH_MS = 30_000
 
 interface AutoPopulateSignal {
   vixLevel: string
@@ -73,24 +78,34 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
   const [error, setError] = useState<string | null>(null)
 
   const evtSourceRef = useRef<EventSource | null>(null)
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ─── POLL  slow tiles (VIX / QQQ) ───────────────────────────────────────────
-  const reloadBriefing = useCallback(async () => {
-    try {
-      const res = await fetch('/api/market-data', { cache: 'no-store' })
-      if (!res.ok) throw new Error(`briefing fetch ${res.status}`)
-      const json = (await res.json()) as MarketBriefing
-      setBriefing((json as any).briefing || json)
+  // ─── POLL  slow tiles (VIX / QQQ / IBS / VWAP) via React Query ─────────────
+  const { data: briefingData, error: briefingError } = useQuery({
+    queryKey: ['market-data'],
+    queryFn: () => fetch('/api/market-data', { cache: 'no-store' }).then(r => {
+      if (!r.ok) throw new Error(`briefing fetch ${r.status}`)
+      return r.json()
+    }),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  })
+
+  useEffect(() => {
+    if (briefingData) {
+      setBriefing((briefingData as any).briefing || briefingData)
       setError(null)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'fetch failed'
-      console.warn('[MorningBriefing]', msg)
-      setError((prev) => (prev ?? msg))
-    } finally {
       setLoading(false)
     }
-  }, [])
+  }, [briefingData])
+
+  useEffect(() => {
+    if (briefingError) {
+      const msg = briefingError instanceof Error ? briefingError.message : 'fetch failed'
+      console.warn('[MorningBriefing]', msg)
+      setError((prev) => prev ?? msg)
+      setLoading(false)
+    }
+  }, [briefingError])
 
   // ─── SSE  open / reconnect helper ──────────────────────────────────────────
   const openSSE = useCallback(() => {
@@ -138,42 +153,28 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
     return es
   }, [])
 
-  // ─── POLL  start / restart helper ──────────────────────────────────────────
-  const startPolling = useCallback(() => {
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-    reloadBriefing() // immediate fetch
-    pollTimerRef.current = setInterval(reloadBriefing, BRIEFING_REFRESH_MS)
-  }, [reloadBriefing])
-
-  // ─── MOUNT  start everything ───────────────────────────────────────────────
+  // ─── MOUNT  start SSE stream ───────────────────────────────────────────────
   useEffect(() => {
-    startPolling()
     openSSE()
-
     return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
       if (evtSourceRef.current) {
         evtSourceRef.current.close()
         evtSourceRef.current = null
       }
     }
-  }, [startPolling, openSSE])
+  }, [openSSE])
 
-  // ─── TAB WAKE  reconnect SSE + restart polling when tab becomes visible ────
-  // Browsers throttle/kill setInterval and drop EventSource when a tab is
-  // backgrounded. This listener fires when the user switches back, immediately
-  // fetching fresh data and reopening the live stream.
+  // ─── TAB WAKE  reconnect SSE when tab becomes visible ─────────────────────
   useEffect(() => {
     function handleVisibility() {
       if (document.visibilityState === 'visible') {
-        console.log('[MorningBriefing] Tab woke up — reconnecting')
-        startPolling()
+        console.log('[MorningBriefing] Tab woke up — reconnecting SSE')
         openSSE()
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [startPolling, openSSE])
+  }, [openSSE])
 
   // ─── EMIT  auto-populate signal whenever the briefing snapshot changes ──────
   useEffect(() => {
@@ -228,8 +229,8 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
         </span>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* NQ tile — live */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* NQ tile — live + VWAP */}
         <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60 relative">
           <div className="text-[10px] font-mono tracking-wide text-neutral-500">NQ (MNQ proxy)</div>
           <div className="mt-1 text-xl font-semibold text-neutral-100 tabular-nums">
@@ -238,6 +239,11 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
           <div className={`mt-1 text-xs font-mono tabular-nums ${nqUp ? 'text-green-400' : 'text-red-400'}`}>
             {nqUp ? '▲' : '▼'} {nqChange.toFixed(2)} ({nqChangePct.toFixed(2)}%)
           </div>
+          {briefing.vwap != null && (
+            <div className={`mt-1 text-xs font-mono tabular-nums ${nqPrice >= briefing.vwap ? 'text-green-500' : 'text-red-500'}`}>
+              {nqPrice >= briefing.vwap ? '▲ above' : '▼ below'} VWAP ({briefing.vwap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+            </div>
+          )}
         </div>
 
         {/* VIX tile */}
@@ -258,6 +264,35 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
             {briefing.vix?.label ?? '-'}
           </div>
         </div>
+
+        {/* IBS bias tile */}
+        {(() => {
+          const ibs = briefing.ibs
+          if (!ibs) return (
+            <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60">
+              <div className="text-[10px] font-mono tracking-wide text-neutral-500">IBS BIAS</div>
+              <div className="mt-1 text-xs font-mono text-neutral-600">Unavailable</div>
+            </div>
+          )
+          const isLongCaution  = ibs.bias === 'long_caution'
+          const isShortCaution = ibs.bias === 'short_caution'
+          const isWarning = isLongCaution || isShortCaution
+          return (
+            <div className={`rounded-2xl border p-4 ${isWarning ? 'border-yellow-600/50 bg-yellow-950/30' : 'border-neutral-800 bg-neutral-950/60'}`}>
+              <div className="text-[10px] font-mono tracking-wide text-neutral-500">IBS BIAS</div>
+              <div className={`mt-1 text-base font-semibold font-mono ${isWarning ? 'text-yellow-400' : 'text-neutral-100'}`}>
+                {isLongCaution ? '⚠ Long Caution' : isShortCaution ? '⚠ Short Caution' : 'Neutral'}
+              </div>
+              <div className="mt-1 text-[11px] font-mono text-neutral-400">
+                {isLongCaution
+                  ? `Overbought overnight (IBS ${ibs.value.toFixed(2)})`
+                  : isShortCaution
+                  ? `Oversold overnight (IBS ${ibs.value.toFixed(2)})`
+                  : `IBS ${ibs.value.toFixed(2)} — no mean-reversion bias`}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* QQQ tile */}
         <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60">

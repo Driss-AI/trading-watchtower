@@ -47,6 +47,8 @@ export interface MarketBriefing {
   qqq: QQQData | null
   nq: NQData | null
   news: NewsEvent[]
+  ibs: IBSData | null
+  vwap: number | null
   hasHighImpactNewsToday: boolean
   marketStatus: ReturnType<typeof getMarketStatus>
   fetchedAt: string
@@ -284,6 +286,83 @@ function mergeDays(a: CalendarDay[], b: CalendarDay[]): CalendarDay[] {
   return Array.from(map.values()).sort((x, y) => x.date.localeCompare(y.date))
 }
 
+// ─── IBS (Internal Bar Strength) ─────────────────────────────────────────────
+// IBS = (Close - Low) / (High - Low) for yesterday's NQ bar.
+// > 0.8 → overbought (long caution); < 0.2 → oversold (short caution).
+
+export interface IBSData {
+  value: number                                           // 0–1
+  bias: 'long_caution' | 'short_caution' | 'neutral'
+}
+
+async function fetchNQIBS(): Promise<IBSData> {
+  // Yahoo Finance v8 with range=5d gives us recent daily bars including yesterday
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/NQ%3DF?interval=1d&range=5d&includePrePost=false`
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TradingWatchtower/2.0)', Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`Yahoo IBS HTTP ${res.status}`)
+  const data = await res.json()
+  const result = data?.chart?.result?.[0]
+  const quotes = result?.indicators?.quote?.[0]
+  const timestamps: number[] = result?.timestamp ?? []
+
+  if (!quotes || timestamps.length < 2) throw new Error('Not enough bars for IBS')
+
+  // Take the second-to-last bar (yesterday's completed bar)
+  const idx = timestamps.length - 2
+  const high  = quotes.high?.[idx]
+  const low   = quotes.low?.[idx]
+  const close = quotes.close?.[idx]
+
+  if (high == null || low == null || close == null || high === low) {
+    throw new Error('Invalid OHLC for IBS calculation')
+  }
+
+  const value = parseFloat(((close - low) / (high - low)).toFixed(3))
+  const bias: IBSData['bias'] =
+    value > 0.8 ? 'long_caution' :
+    value < 0.2 ? 'short_caution' :
+    'neutral'
+
+  return { value, bias }
+}
+
+// ─── VWAP ─────────────────────────────────────────────────────────────────────
+// Intraday VWAP for NQ from 1-minute bars via Yahoo Finance.
+// sum(typical_price * volume) / sum(volume)  from session open.
+
+async function fetchNQVWAP(): Promise<number | null> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/NQ%3DF?interval=1m&range=1d&includePrePost=false`
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TradingWatchtower/2.0)', Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  const result = data?.chart?.result?.[0]
+  const quotes = result?.indicators?.quote?.[0]
+
+  if (!quotes?.high || !quotes?.low || !quotes?.close || !quotes?.volume) return null
+
+  let sumPV = 0
+  let sumV  = 0
+  const len = quotes.close.length
+  for (let i = 0; i < len; i++) {
+    const h = quotes.high[i]
+    const l = quotes.low[i]
+    const c = quotes.close[i]
+    const v = quotes.volume[i]
+    if (h == null || l == null || c == null || !v) continue
+    const typical = (h + l + c) / 3
+    sumPV += typical * v
+    sumV  += v
+  }
+
+  return sumV > 0 ? parseFloat((sumPV / sumV).toFixed(2)) : null
+}
+
 // ─── FULL BRIEFING ────────────────────────────────────────────────────────────
 export async function fetchMarketBriefing(): Promise<MarketBriefing> {
   const errors: string[] = []
@@ -291,19 +370,23 @@ export async function fetchMarketBriefing(): Promise<MarketBriefing> {
   let qqq: QQQData | null = null
   let nq: NQData | null = null
   let news: NewsEvent[] = []
+  let ibs: IBSData | null = null
+  let vwap: number | null = null
 
   await Promise.allSettled([
     fetchVIX().then((d) => { vix = d }).catch((e) => errors.push(`VIX: ${e.message}`)),
     fetchQQQ().then((d) => { qqq = d }).catch((e) => errors.push(`QQQ: ${e.message}`)),
     fetchNQ().then((d)  => { nq  = d }).catch((e) => errors.push(`NQ: ${e.message}`)),
     fetchEconomicCalendar().then((d) => { news = d }).catch((e) => errors.push(`Calendar: ${e.message}`)),
+    fetchNQIBS().then((d) => { ibs = d }).catch((e) => errors.push(`IBS: ${e.message}`)),
+    fetchNQVWAP().then((d) => { vwap = d }).catch((e) => errors.push(`VWAP: ${e.message}`)),
   ])
 
   const hasHighImpactNewsToday = news.some((e) => e.impact === 'high')
   const marketStatus = getMarketStatus()
 
   return {
-    vix, qqq, nq, news,
+    vix, qqq, nq, news, ibs, vwap,
     hasHighImpactNewsToday,
     marketStatus,
     fetchedAt: new Date().toISOString(),

@@ -7,7 +7,23 @@
 // ⚠️  READ-ONLY listener. Order execution remains permanently disabled.
 
 import * as signalR from '@microsoft/signalr'
+import { z } from 'zod'
 import { getTopstepXToken } from './topstepx'
+
+// ─── ZOD SCHEMA FOR GATEWAY QUOTE ─────────────────────────────────────────────
+const RawQuoteSchema = z.object({
+  lastPrice:      z.number().optional(),
+  bestBid:        z.number().optional(),
+  bestAsk:        z.number().optional(),
+  change:         z.number().optional(),
+  changePercent:  z.number().optional(),
+  open:           z.number().optional(),
+  high:           z.number().optional(),
+  low:            z.number().optional(),
+  volume:         z.number().optional(),
+  timestamp:      z.union([z.string(), z.number()]).optional(),
+  lastUpdated:    z.union([z.string(), z.number()]).optional(),
+}).passthrough()
 
 const WS_BASE = process.env.TOPSTEPX_WS_URL ?? 'https://rtc.topstepx.com'
 
@@ -273,8 +289,13 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
 
   // ⚠️  Market Hub events take TWO args: (contractId, payload).
   // User Hub events take ONE arg. Don't confuse them.
-  hub.on('GatewayQuote', (contractId: string, raw: any) => {
-    const data = toWSQuote(contractId, raw)
+  hub.on('GatewayQuote', (contractId: string, raw: unknown) => {
+    const parsed = RawQuoteSchema.safeParse(raw)
+    if (!parsed.success) {
+      console.warn('[TopstepX WS] Unexpected GatewayQuote shape:', raw)
+      return
+    }
+    const data = toWSQuote(contractId, parsed.data)
     _lastQuote.set(contractId, data)
     broadcast({ type: 'quote', data })
   })

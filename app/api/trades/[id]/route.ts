@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+
+export const dynamic = 'force-dynamic'
 import { POINT_VALUES } from '@/lib/scoring'
 
 // PATCH /api/trades/[id] — update a trade (e.g., add exit price)

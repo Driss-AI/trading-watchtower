@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { getPrimaryAccount, getOpenPositions, testConnection } from '@/lib/topstepx'
 import { prisma } from '@/lib/prisma'

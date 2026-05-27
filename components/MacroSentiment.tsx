@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 interface FearGreed {
   score: number; rating: string; previousClose: number; previousWeek: number
@@ -26,56 +27,27 @@ interface Props {
   onMacroLoad?: (data: { us10yAgainst: boolean; dxyAgainst: boolean }) => void
 }
 
-const MACRO_REFRESH_MS = 60_000  // 60 seconds
-
 export default function MacroSentiment({ onMacroLoad }: Props) {
-  const [macro, setMacro] = useState<Macro | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState('')
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { data, isLoading, refetch } = useQuery<{ macro: Macro }>({
+    queryKey: ['macro'],
+    queryFn: () => fetch('/api/macro', { cache: 'no-store' }).then(r => r.json()),
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/macro', { cache: 'no-store' })
-      const { macro: m } = await res.json()
-      setMacro(m)
-      if (m?.fetchedAt) {
-        setLastUpdated(new Date(m.fetchedAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }))
-      }
-      if (m && onMacroLoad) {
-        onMacroLoad({ us10yAgainst: m.suggestUS10yAgainst, dxyAgainst: m.suggestDXYAgainst })
-      }
-    } catch {
-    } finally {
-      setLoading(false)
-    }
-  }, [onMacroLoad])
+  const macro = data?.macro ?? null
+  const lastUpdated = macro?.fetchedAt
+    ? new Date(macro.fetchedAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })
+    : ''
 
-  // ─── MOUNT  initial fetch + polling ─────────────────────────────────────────
+  // Notify parent when macro data is ready
   useEffect(() => {
-    load()
-    pollTimerRef.current = setInterval(load, MACRO_REFRESH_MS)
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+    if (macro && onMacroLoad) {
+      onMacroLoad({ us10yAgainst: macro.suggestUS10yAgainst, dxyAgainst: macro.suggestDXYAgainst })
     }
-  }, [load])
+  }, [macro, onMacroLoad])
 
-  // ─── TAB WAKE  refresh when tab becomes visible ────────────────────────────
-  useEffect(() => {
-    function handleVisibility() {
-      if (document.visibilityState === 'visible') {
-        console.log('[MacroSentiment] Tab woke up — refreshing')
-        load()
-        // Restart the interval so it's aligned to the wake-up
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-        pollTimerRef.current = setInterval(load, MACRO_REFRESH_MS)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [load])
-
-  if (loading) return (
+  if (isLoading) return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
       Loading macro sentiment...
     </div>
@@ -110,7 +82,7 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
           </span>
           {lastUpdated && <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>· {lastUpdated} ET</span>}
         </div>
-        <button onClick={load} className="btn btn-ghost" style={{ fontSize: '11px', padding: '4px 10px' }}>↻</button>
+        <button onClick={() => refetch()} className="btn btn-ghost" style={{ fontSize: '11px', padding: '4px 10px' }}>↻</button>
       </div>
 
       <div style={{ padding: '14px 20px' }}>
