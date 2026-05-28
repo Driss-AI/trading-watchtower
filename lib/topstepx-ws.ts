@@ -321,16 +321,28 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
   // ⚠️  Market Hub events take TWO args: (contractId, payload).
   // User Hub events take ONE arg. Don't confuse them.
   let _quoteLogCount = 0
+  let _lastBroadcastTime = 0
+  const BROADCAST_THROTTLE_MS = 100
+
   hub.on('GatewayQuote', (contractId: string, raw: unknown) => {
-    const parsed = RawQuoteSchema.safeParse(raw)
-    if (!parsed.success) {
-      console.warn('[TopstepX WS] Unexpected GatewayQuote shape:', raw)
-      return
+    // Validate first 3 quotes, then trust the shape for performance
+    if (_quoteLogCount < 3) {
+      const parsed = RawQuoteSchema.safeParse(raw)
+      if (!parsed.success) {
+        console.warn('[TopstepX WS] Unexpected GatewayQuote shape:', raw)
+        return
+      }
     }
-    const data = toWSQuote(contractId, parsed.data)
+    const data = toWSQuote(contractId, raw)
     _lastQuote.set(contractId, data)
-    broadcast({ type: 'quote', data })
-    // Log the first 3 quotes per hub instance to confirm flow without spamming
+
+    // Throttle broadcast to ~10/sec — subscribers (SSE, paper engine) don't need every tick
+    const now = Date.now()
+    if (now - _lastBroadcastTime >= BROADCAST_THROTTLE_MS) {
+      _lastBroadcastTime = now
+      broadcast({ type: 'quote', data })
+    }
+
     if (_quoteLogCount < 3) {
       _quoteLogCount++
       console.log(`[TopstepX WS] GatewayQuote #${_quoteLogCount}: ${contractId} price=${data.price} bid=${data.bid} ask=${data.ask}`)

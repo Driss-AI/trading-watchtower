@@ -96,6 +96,10 @@ export async function GET(req: NextRequest) {
         if (last) send({ type: 'quote', data: last })
       }
 
+      // Throttle quote events to ~4/second per SSE client to reduce CPU
+      let lastQuoteSent = 0
+      const QUOTE_THROTTLE_MS = 250
+
       // Subscribe to all events and forward to this SSE client.
       const unsubscribe = subscribe((event) => {
         if (hub === 'market') {
@@ -107,6 +111,9 @@ export async function GET(req: NextRequest) {
           // Only forward QUOTE events that match this client's contract.
           if (event.type !== 'quote') return
           if (event.data?.contractId !== resolvedContractId) return
+          const now = Date.now()
+          if (now - lastQuoteSent < QUOTE_THROTTLE_MS) return
+          lastQuoteSent = now
           send(event)
           return
         }
