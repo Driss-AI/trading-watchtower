@@ -222,24 +222,32 @@ function formatNYTime(): string {
 // ─── SETTINGS LOADER ─────────────────────────────────────────────────────────
 
 async function loadSettings() {
-  try {
-    const s = await prisma.settings.findFirst()
-    if (s) {
-      _settings = {
-        dailyLossLimit: s.dailyLossLimit,
-        maxTradesPerDay: s.maxTradesPerDay,
-        maxLosingTradesPerDay: s.maxLosingTradesPerDay,
-        accountSize: s.accountSize,
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const s = await prisma.settings.findFirst()
+      if (s) {
+        _settings = {
+          dailyLossLimit: s.dailyLossLimit,
+          maxTradesPerDay: s.maxTradesPerDay,
+          maxLosingTradesPerDay: s.maxLosingTradesPerDay,
+          accountSize: s.accountSize,
+        }
       }
-    }
-  } catch (err) {
-    console.error('[PaperEngine] DB settings load failed, using defaults:', err)
-    notify(`⚠️ <b>DB SETTINGS FAILED</b>\nUsing 50K defaults (DLL=$1000, max 2 trades)`)
-    _settings = {
-      dailyLossLimit: 1000,
-      maxTradesPerDay: 2,
-      maxLosingTradesPerDay: 2,
-      accountSize: 50000,
+      return
+    } catch (err) {
+      if (attempt < 3) {
+        console.warn(`[PaperEngine] DB settings load attempt ${attempt}/3 failed, retrying in 5s...`)
+        await new Promise(r => setTimeout(r, 5000))
+      } else {
+        console.error('[PaperEngine] DB settings load failed after 3 attempts, using defaults:', err)
+        notify(`⚠️ <b>DB SETTINGS FAILED</b>\nUsing 50K defaults (DLL=$1000, max 2 trades)`)
+        _settings = {
+          dailyLossLimit: 1000,
+          maxTradesPerDay: 2,
+          maxLosingTradesPerDay: 2,
+          accountSize: 50000,
+        }
+      }
     }
   }
 }
@@ -314,9 +322,9 @@ async function runPreSessionAnalysis(): Promise<void> {
       trailingDrawdownRemaining: _settings ? _settings.dailyLossLimit * 2 : 2000,
     })
 
-    if (_preSession.adjustments.bufferPoints != null) _config.bufferPoints = _preSession.adjustments.bufferPoints
-    if (_preSession.adjustments.targetMultiple != null) _config.targetMultiple = _preSession.adjustments.targetMultiple
-    if (_preSession.adjustments.maxContracts != null) _config.maxContracts = _preSession.adjustments.maxContracts
+    if (_preSession.adjustments?.bufferPoints != null) _config.bufferPoints = _preSession.adjustments.bufferPoints
+    if (_preSession.adjustments?.targetMultiple != null) _config.targetMultiple = _preSession.adjustments.targetMultiple
+    if (_preSession.adjustments?.maxContracts != null) _config.maxContracts = _preSession.adjustments.maxContracts
 
     console.log(`[PaperEngine] AI pre-session: trade=${_preSession.shouldTrade} bias=${_preSession.bias} confidence=${_preSession.confidence}%`)
     const verdict = _preSession.shouldTrade ? '✅ TRADE TODAY' : '🚫 NO TRADE'
@@ -929,6 +937,9 @@ function shouldBeRunning(): boolean {
 
 function initAutoStart(): void {
   if (_autoStartTimer) return
+  const g = globalThis as Record<string, unknown>
+  if (g.__paperEngineStarted) return
+  g.__paperEngineStarted = true
 
   async function tick() {
     if (shouldBeRunning() && !_enabled) {
