@@ -192,6 +192,15 @@ let _settings: {
   accountSize: number
 } | null = null
 
+// Next.js loads this module in multiple contexts (instrumentation vs API routes).
+// The engine runs in one context but getEngineState() may be called from another.
+// Sync a state snapshot to globalThis so both contexts see the same state.
+const _g = globalThis as unknown as { __paperEngineState?: PaperEngineState }
+
+function syncStateToGlobal(state: PaperEngineState): void {
+  _g.__paperEngineState = state
+}
+
 // ─── NY TIME HELPERS ─────────────────────────────────────────────────────────
 
 function getNYTime(): { h: number; m: number; totalMin: number } {
@@ -409,7 +418,9 @@ function checkDayReset(): void {
 
 let _lastDrainTime = 0
 let _lastProcessedTick = 0
+let _lastGlobalSync = 0
 const TICK_THROTTLE_MS = 250
+const GLOBAL_SYNC_MS = 1000
 
 function processTick(quote: WSQuote): void {
   if (quote.price <= 0) return
@@ -419,6 +430,12 @@ function processTick(quote: WSQuote): void {
   const now = Date.now()
   if (now - _lastProcessedTick < TICK_THROTTLE_MS) return
   _lastProcessedTick = now
+
+  // Sync state to globalThis so API routes in other contexts can read it
+  if (now - _lastGlobalSync >= GLOBAL_SYNC_MS) {
+    _lastGlobalSync = now
+    syncStateToGlobal(getEngineState())
+  }
 
   // Retry failed DB writes every 30 seconds
   if (_writeQueue.length > 0 && now - _lastDrainTime > 30_000) {
@@ -872,6 +889,7 @@ export async function startEngine(): Promise<void> {
   })
 
   _enabled = true
+  syncStateToGlobal(getEngineState())
   console.log('[PaperEngine] Running — waiting for trading hours')
   notify(`🟢 <b>ENGINE STARTED</b>\nSubscribed to MNQ (${_contractId})\n⏰ ${formatNYTime()}`)
 
@@ -898,6 +916,7 @@ export async function stopEngine(): Promise<void> {
 
   _enabled = false
   _phase = 'idle'
+  syncStateToGlobal(getEngineState())
   console.log('[PaperEngine] Stopped')
 
   const summary = _tradesCount > 0
@@ -916,8 +935,6 @@ export function configureEngine(config: Partial<EngineConfig>): void {
 // Checks every 60s if it should be running (weekday, market hours or pre-market).
 // Stops itself after market close and restarts next morning.
 
-let _autoStartTimer: ReturnType<typeof setInterval> | null = null
-
 function shouldBeRunning(): boolean {
   const now = new Date()
   const ny = new Intl.DateTimeFormat('en-US', {
@@ -935,11 +952,14 @@ function shouldBeRunning(): boolean {
   return timeDecimal >= 9 && timeDecimal < 12
 }
 
+let _autoStartTimer: ReturnType<typeof setInterval> | null = null
+
 function initAutoStart(): void {
   if (_autoStartTimer) return
+  // Prevent duplicate timers across Next.js module contexts
   const g = globalThis as Record<string, unknown>
-  if (g.__paperEngineStarted) return
-  g.__paperEngineStarted = true
+  if (g.__paperEngineTimer) return
+  g.__paperEngineTimer = true
 
   async function tick() {
     if (shouldBeRunning() && !_enabled) {
@@ -963,33 +983,58 @@ function initAutoStart(): void {
 initAutoStart()
 
 export function getEngineState(): PaperEngineState {
-  // Refresh phase on read
+  // If this context owns the engine, build fresh state
   if (_enabled) {
     checkDayReset()
     updatePhase()
+
+    const state: PaperEngineState = {
+      enabled: _enabled,
+      phase: _phase,
+      contractId: _contractId,
+      orHigh: _orHigh,
+      orLow: _orLow,
+      orSize: _orHigh !== null && _orLow !== null ? parseFloat((_orHigh - _orLow).toFixed(2)) : null,
+      orLocked: _orLocked,
+      openTrade: _openTrade,
+      dailyPnl: parseFloat(_dailyPnl.toFixed(2)),
+      tradesCount: _tradesCount,
+      winsCount: _winsCount,
+      lossesCount: _lossesCount,
+      lastPrice: _lastPrice,
+      todayTrades: _todayTrades,
+      config: { ..._config },
+      ai: {
+        preSession: _preSession,
+        orAssessment: _orAssessment,
+        lastBreakout: _lastBreakout,
+        analysisInProgress: _aiAnalysisInProgress,
+      },
+    }
+    syncStateToGlobal(state)
+    return state
   }
 
+  // This context doesn't own the engine — read from the shared global snapshot
+  if (_g.__paperEngineState) return _g.__paperEngineState
+
+  // No engine running anywhere
   return {
-    enabled: _enabled,
-    phase: _phase,
-    contractId: _contractId,
-    orHigh: _orHigh,
-    orLow: _orLow,
-    orSize: _orHigh !== null && _orLow !== null ? parseFloat((_orHigh - _orLow).toFixed(2)) : null,
-    orLocked: _orLocked,
-    openTrade: _openTrade,
-    dailyPnl: parseFloat(_dailyPnl.toFixed(2)),
-    tradesCount: _tradesCount,
-    winsCount: _winsCount,
-    lossesCount: _lossesCount,
-    lastPrice: _lastPrice,
-    todayTrades: _todayTrades,
+    enabled: false,
+    phase: 'idle',
+    contractId: null,
+    orHigh: null,
+    orLow: null,
+    orSize: null,
+    orLocked: false,
+    openTrade: null,
+    dailyPnl: 0,
+    tradesCount: 0,
+    winsCount: 0,
+    lossesCount: 0,
+    lastPrice: 0,
+    todayTrades: [],
     config: { ..._config },
-    ai: {
-      preSession: _preSession,
-      orAssessment: _orAssessment,
-      lastBreakout: _lastBreakout,
-      analysisInProgress: _aiAnalysisInProgress,
-    },
+    ai: { preSession: null, orAssessment: null, lastBreakout: null, analysisInProgress: false },
   }
 }
