@@ -198,7 +198,6 @@ export function SessionTimerNavbar() {
         {navLabel}
       </span>
       <span style={{ color: 'var(--text-primary)', fontWeight: 600, letterSpacing: '0.05em' }}>{countdown}</span>
-      <span style={{ color: 'var(--text-dim)', fontSize: '10px' }}>{s.dubaiTime}</span>
     </div>
   )
 }

@@ -64,7 +64,7 @@ export default function Navbar() {
         </a>
 
         {/* Nav links */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
+        <div style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
           {NAV_ITEMS.map((item) => {
             const active = path === item.href
             return (
