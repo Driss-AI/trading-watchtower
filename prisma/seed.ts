@@ -8,12 +8,7 @@ async function main() {
   // Create default settings (id=1 is the singleton)
   await prisma.settings.upsert({
     where: { id: 1 },
-    update: {
-      accountSize: 50000,
-      dailyLossLimit: 1000,
-      trailingDrawdown: 2000,
-      profitTarget: 3000,
-    },
+    update: {},
     create: {
       id: 1,
       accountSize: 50000,

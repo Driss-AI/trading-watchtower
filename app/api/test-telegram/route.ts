@@ -1,9 +1,21 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { sendTelegramAlert } from '@/lib/telegram'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!rateLimit(`test-telegram:${ip}`, 5, 60_000).allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
+  const secret = req.headers.get('x-cron-secret')
+  const expected = process.env.CRON_SECRET
+  if (!expected || secret !== expected) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const token = process.env.TELEGRAM_BOT_TOKEN ?? ''
   const chatId = process.env.TELEGRAM_CHAT_ID ?? ''
 

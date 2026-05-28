@@ -51,4 +51,4 @@ jobs:
       - name: Send Telegram alert
         if: steps.alert-type.outputs.type != 'unknown'
         run: |
-          curl -s "${{ secrets.WATCHTOWER_URL }}/api/cron/market-alerts?secret=${{ secrets.CRON_SECRET }}&type=${{ steps.alert-type.outputs.type }}"
+          curl -s -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" "${{ secrets.WATCHTOWER_URL }}/api/cron/market-alerts?type=${{ steps.alert-type.outputs.type }}"

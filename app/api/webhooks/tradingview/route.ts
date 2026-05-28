@@ -2,45 +2,51 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendTelegramAlert, buildOrbAlert } from '@/lib/telegram'
-
-// POST /api/webhooks/tradingview
-// Receives ORB breakout alerts from TradingView Pine Script
-// NEVER places trades — read-only processing only
+import { rateLimit } from '@/lib/rate-limit'
+import { tradingViewWebhookSchema } from '@/lib/webhook-schema'
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+    if (!rateLimit(`webhook:${ip}`, 30, 60_000).allowed) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
+
     const body = await req.json()
 
-    // ─── SECRET VALIDATION ──────────────────────────────────────────────────
     const configuredSecret = process.env.TRADINGVIEW_WEBHOOK_SECRET
-    if (configuredSecret && body.secret !== configuredSecret) {
+    if (!configuredSecret || body.secret !== configuredSecret) {
       console.warn('[Webhook] Invalid secret attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // ─── STORE RAW EVENT ────────────────────────────────────────────────────
+    const parsed = tradingViewWebhookSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid payload', details: parsed.error.issues }, { status: 400 })
+    }
+    const payload = parsed.data
+
     const event = await prisma.webhookEvent.create({
       data: {
         source: 'tradingview',
-        payload: JSON.stringify(body),
+        payload: JSON.stringify(payload),
         processed: false,
         alertSent: false,
       },
     })
 
-    // ─── PROCESS ORB BREAKOUT ───────────────────────────────────────────────
     let alertSent = false
 
-    if (body.event === 'ORB_BREAKOUT' && body.symbol && body.direction && body.price) {
+    if (payload.event === 'ORB_BREAKOUT' && payload.symbol && payload.direction && payload.price) {
       const settings = await prisma.settings.findFirst()
 
       if (settings?.telegramBotToken && settings?.telegramChatId) {
         const message = buildOrbAlert({
-          symbol: body.symbol,
-          direction: body.direction,
-          price: body.price,
-          orHigh: body.or_high ?? 0,
-          orLow: body.or_low ?? 0,
+          symbol: payload.symbol,
+          direction: payload.direction,
+          price: payload.price,
+          orHigh: payload.or_high ?? 0,
+          orLow: payload.or_low ?? 0,
         })
 
         alertSent = await sendTelegramAlert(

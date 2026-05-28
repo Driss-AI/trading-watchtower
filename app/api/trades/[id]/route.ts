@@ -74,7 +74,32 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const trade = await prisma.trade.findUnique({ where: { id: params.id } })
+    if (!trade) return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
+
     await prisma.trade.delete({ where: { id: params.id } })
+
+    // Recalculate session aggregates
+    const sessionTrades = await prisma.trade.findMany({
+      where: { sessionId: trade.sessionId, status: { not: 'OPEN' } },
+    })
+    const totalPnl = sessionTrades.reduce((s, t) => s + (t.resultDollars ?? 0), 0)
+    const lossCount = sessionTrades.filter((t) => t.status === 'LOSS').length
+    await prisma.session.update({
+      where: { id: trade.sessionId },
+      data: { dailyPnl: totalPnl, tradesCount: sessionTrades.length, losesCount: lossCount },
+    })
+
+    // Audit log
+    await prisma.syncLog.create({
+      data: {
+        provider: 'watchtower',
+        action: 'delete_trade',
+        status: 'success',
+        message: `Deleted trade ${trade.id} (${trade.direction} ${trade.market} ${trade.date} $${trade.resultDollars ?? 0})`,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error(err)

@@ -1,13 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/performance — aggregate stats across all trades
-export async function GET() {
+// GET /api/performance?source=paper|manual|topstepx — aggregate stats
+export async function GET(req: NextRequest) {
   try {
+    const source = req.nextUrl.searchParams.get('source')
+    const where: Record<string, unknown> = { status: { not: 'OPEN' } }
+    if (source) where.source = source
+
     const trades = await prisma.trade.findMany({
-      where: { status: { not: 'OPEN' } },
+      where,
       orderBy: { createdAt: 'asc' },
     })
 

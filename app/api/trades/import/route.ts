@@ -35,10 +35,12 @@ export async function POST(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const days = parseInt(searchParams.get('days') ?? '7')
 
-    // If ?clear=true, delete all existing trades AND sessions first
     if (searchParams.get('clear') === 'true') {
-      await prisma.trade.deleteMany({})
-      console.log('[Trade Import] Cleared all existing trades')
+      await prisma.$transaction([
+        prisma.trade.deleteMany({}),
+        prisma.session.updateMany({ data: { dailyPnl: 0, tradesCount: 0, losesCount: 0 } }),
+      ])
+      console.log('[Trade Import] Cleared all trades and reset session aggregates')
     }
 
     const startTime = new Date()

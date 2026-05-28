@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rate-limit'
 
 const MESSAGES: Record<string, string> = {
   warning15: [
@@ -54,9 +55,14 @@ const MESSAGES: Record<string, string> = {
 }
 
 export async function GET(req: NextRequest) {
-  // Verify secret to prevent unauthorized calls
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.CRON_SECRET) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!rateLimit(`cron:${ip}`, 10, 60_000).allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
+  const secret = req.headers.get('x-cron-secret')
+  const expected = process.env.CRON_SECRET
+  if (!expected || secret !== expected) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
