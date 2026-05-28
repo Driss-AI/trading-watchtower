@@ -400,13 +400,19 @@ function checkDayReset(): void {
 // ─── TICK PROCESSOR ──────────────────────────────────────────────────────────
 
 let _lastDrainTime = 0
+let _lastProcessedTick = 0
+const TICK_THROTTLE_MS = 250
 
 function processTick(quote: WSQuote): void {
   if (quote.price <= 0) return
   _lastPrice = quote.price
 
-  // Retry failed DB writes every 30 seconds
+  // Throttle: process logic at most 4x/second to keep CPU low
   const now = Date.now()
+  if (now - _lastProcessedTick < TICK_THROTTLE_MS) return
+  _lastProcessedTick = now
+
+  // Retry failed DB writes every 30 seconds
   if (_writeQueue.length > 0 && now - _lastDrainTime > 30_000) {
     _lastDrainTime = now
     drainWriteQueue().catch(() => {})

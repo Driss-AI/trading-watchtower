@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "for i in 1 2 3 4 5 6; do npx prisma db push && break || (echo \"[startup] DB not ready — retry $i/6 in 10s\" && sleep 10); done && next start",
+    "startCommand": "until npx prisma db push; do echo \"[startup] DB not ready — retrying in 10s\" && sleep 10; done && next start",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
