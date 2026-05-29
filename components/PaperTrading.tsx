@@ -49,6 +49,39 @@ interface AIState {
   analysisInProgress: boolean
 }
 
+type OrderflowVerdict = 'confirm' | 'caution' | 'veto'
+
+interface OrderflowAssessment {
+  available: boolean
+  cumDelta: number
+  shortDelta: number
+  deltaConfirms: boolean
+  divergence: 'none' | 'mild' | 'strong'
+  resistanceVol: number
+  supportVol: number
+  wallRisk: 'none' | 'moderate' | 'high'
+  verdict: OrderflowVerdict
+  reasons: string[]
+}
+
+interface OrderflowLive {
+  refPrice: number
+  long: OrderflowAssessment
+  short: OrderflowAssessment
+}
+
+interface OrderflowSnapshot {
+  available: boolean
+  contractId: string
+  cumDelta: number
+  shortDelta: number
+  bookLevels: number
+  lastTradeAgoMs: number | null
+  bestBid: number | null
+  bestAsk: number | null
+  live: OrderflowLive | null
+}
+
 interface EngineState {
   enabled: boolean
   phase: 'idle' | 'forming' | 'monitoring' | 'closed'
@@ -70,8 +103,13 @@ interface EngineState {
     maxContracts: number
     sessionEndMinute: number
     enableBreakevenStop: boolean
+    enableOrderflowVeto: boolean
   }
   ai: AIState
+  orderflow: OrderflowSnapshot | null
+  lastOrderflow: OrderflowAssessment | null
+  orderflowVetoes: { count: number; reasons: string[] }
+  debrief: string | null
 }
 
 const PHASE_LABELS: Record<string, { label: string; color: string }> = {
@@ -144,6 +182,24 @@ export default function PaperTrading() {
     }
   }
 
+  async function sendConfigure(config: Record<string, unknown>) {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/paper-engine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'configure', config }),
+      })
+      const data = await res.json()
+      if (data.state) setState(data.state)
+      if (data.error) setError(data.error)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!state) {
     return (
       <div className="card" style={{ marginBottom: '16px' }}>
@@ -157,6 +213,7 @@ export default function PaperTrading() {
 
   const phaseInfo = PHASE_LABELS[state.phase] ?? PHASE_LABELS.idle
   const pnlColor = state.dailyPnl > 0 ? 'var(--green)' : state.dailyPnl < 0 ? 'var(--red)' : 'var(--text-primary)'
+  const vetoOn = state.config.enableOrderflowVeto ?? true
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
@@ -182,21 +239,41 @@ export default function PaperTrading() {
             {phaseInfo.label}
           </span>
         </div>
-        <button
-          onClick={() => sendAction(state.enabled ? 'stop' : 'start')}
-          disabled={loading}
-          style={{
-            background: state.enabled ? 'rgba(255,61,61,0.15)' : 'rgba(0,230,118,0.15)',
-            color: state.enabled ? 'var(--red)' : 'var(--green)',
-            border: `1px solid ${state.enabled ? 'rgba(255,61,61,0.3)' : 'rgba(0,230,118,0.3)'}`,
-            borderRadius: '6px', padding: '6px 16px', cursor: 'pointer',
-            fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em',
-            fontFamily: 'IBM Plex Mono, monospace',
-            opacity: loading ? 0.5 : 1,
-          }}
-        >
-          {loading ? '...' : state.enabled ? 'STOP' : 'START'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => sendConfigure({ enableOrderflowVeto: !vetoOn })}
+            disabled={loading}
+            title={vetoOn
+              ? 'Order-flow veto is hard-skipping breakouts on strong divergence / heavy walls. Click to disable.'
+              : 'Order-flow veto disabled — breakouts taken even on strong divergence. Click to enable.'}
+            style={{
+              background: vetoOn ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.04)',
+              color: vetoOn ? 'rgba(129,140,248,0.95)' : 'var(--text-dim)',
+              border: `1px solid ${vetoOn ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
+              borderRadius: '6px', padding: '6px 12px', cursor: 'pointer',
+              fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em',
+              fontFamily: 'IBM Plex Mono, monospace',
+              opacity: loading ? 0.5 : 1,
+            }}
+          >
+            VETO {vetoOn ? 'ON' : 'OFF'}
+          </button>
+          <button
+            onClick={() => sendAction(state.enabled ? 'stop' : 'start')}
+            disabled={loading}
+            style={{
+              background: state.enabled ? 'rgba(255,61,61,0.15)' : 'rgba(0,230,118,0.15)',
+              color: state.enabled ? 'var(--red)' : 'var(--green)',
+              border: `1px solid ${state.enabled ? 'rgba(255,61,61,0.3)' : 'rgba(0,230,118,0.3)'}`,
+              borderRadius: '6px', padding: '6px 16px', cursor: 'pointer',
+              fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em',
+              fontFamily: 'IBM Plex Mono, monospace',
+              opacity: loading ? 0.5 : 1,
+            }}
+          >
+            {loading ? '...' : state.enabled ? 'STOP' : 'START'}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -208,6 +285,9 @@ export default function PaperTrading() {
         <>
           {/* AI Brain Panel */}
           <AIPanel ai={state.ai} />
+
+          {/* Order Flow Panel */}
+          <OrderFlowPanel snapshot={state.orderflow} lastAssessment={state.lastOrderflow} vetoOn={vetoOn} />
 
           {/* Opening Range + Price Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
@@ -303,11 +383,17 @@ export default function PaperTrading() {
               ))}
             </div>
           )}
+
+          {/* Order-flow Veto Feed */}
+          <VetoFeed vetoes={state.orderflowVetoes} />
         </>
       )}
 
+      {/* Today's Debrief — visible after session close even when engine has stopped */}
+      <DebriefCard debrief={state.debrief} />
+
       {/* Idle hint */}
-      {!state.enabled && (
+      {!state.enabled && !state.debrief && (
         <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
           Start the engine to paper trade the ORB strategy on MNQ. Trades are simulated — no real orders placed.
         </div>
@@ -463,6 +549,249 @@ function MiniStat({ label, value, color }: { label: string; value: string; color
       }}>
         {value}
       </div>
+    </div>
+  )
+}
+
+// ─── ORDER FLOW PANEL ────────────────────────────────────────────────────────
+
+const VERDICT_STYLES: Record<OrderflowVerdict, { color: string; label: string }> = {
+  confirm: { color: 'var(--green)', label: 'CONFIRM' },
+  caution: { color: 'var(--yellow)', label: 'CAUTION' },
+  veto:    { color: 'var(--red)',   label: 'VETO' },
+}
+
+// Window delta is rendered against this scale (matches DELTA_STRONG=250 in lib/orderflow.ts).
+const DELTA_BAR_SCALE = 250
+
+function OrderFlowPanel({
+  snapshot,
+  lastAssessment,
+  vetoOn,
+}: {
+  snapshot: OrderflowSnapshot | null
+  lastAssessment: OrderflowAssessment | null
+  vetoOn: boolean
+}) {
+  if (!snapshot) {
+    return (
+      <div style={{
+        background: 'rgba(56,189,248,0.04)',
+        border: '1px solid rgba(56,189,248,0.18)',
+        borderRadius: '8px', padding: '12px 14px', marginBottom: '16px',
+      }}>
+        <div style={{ fontSize: '10px', color: 'rgba(125,211,252,0.9)', letterSpacing: '0.08em', fontWeight: 700, marginBottom: '4px' }}>
+          ORDER FLOW
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Waiting for trade tape and DOM…</div>
+      </div>
+    )
+  }
+
+  const live = snapshot.live
+  const available = snapshot.available
+  const window = snapshot.shortDelta
+  const cum = snapshot.cumDelta
+  const pct = Math.max(-1, Math.min(1, window / DELTA_BAR_SCALE))
+  const barColor = pct >= 0 ? 'var(--green)' : 'var(--red)'
+
+  // Use the LONG-side view for DOM display: resistance = asks above, support = bids below.
+  const dom = live?.long ?? lastAssessment
+  const resistance = dom?.resistanceVol ?? 0
+  const support = dom?.supportVol ?? 0
+  const total = resistance + support
+  const askPct = total > 0 ? (resistance / total) * 100 : 50
+  const lastTradeAgo = snapshot.lastTradeAgoMs
+  const ago = lastTradeAgo == null ? '—' : lastTradeAgo < 1000 ? '<1s' : `${Math.round(lastTradeAgo / 1000)}s`
+
+  return (
+    <div style={{
+      background: 'rgba(56,189,248,0.04)',
+      border: '1px solid rgba(56,189,248,0.18)',
+      borderRadius: '8px', padding: '14px 16px', marginBottom: '16px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ fontSize: '10px', color: 'rgba(125,211,252,0.9)', letterSpacing: '0.08em', fontWeight: 700 }}>
+            ORDER FLOW
+          </div>
+          <span style={{
+            fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em',
+            padding: '1px 6px', borderRadius: '3px',
+            background: available ? 'rgba(0,230,118,0.12)' : 'rgba(255,255,255,0.06)',
+            color: available ? 'var(--green)' : 'var(--text-dim)',
+            border: `1px solid ${available ? 'rgba(0,230,118,0.25)' : 'var(--border)'}`,
+          }}>
+            {available ? 'LIVE' : 'STALE — FAIL-OPEN'}
+          </span>
+          {!vetoOn && (
+            <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-dim)' }}>
+              VETO DISABLED
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+          last print {ago} · {snapshot.bookLevels} book lvls
+        </span>
+      </div>
+
+      {/* Delta row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '10px' }}>
+        <MiniStat
+          label="CUM DELTA (today)"
+          value={`${cum >= 0 ? '+' : ''}${cum}`}
+          color={cum > 0 ? 'var(--green)' : cum < 0 ? 'var(--red)' : undefined}
+        />
+        <MiniStat
+          label="WINDOW Δ (90s)"
+          value={`${window >= 0 ? '+' : ''}${window}`}
+          color={window > 0 ? 'var(--green)' : window < 0 ? 'var(--red)' : undefined}
+        />
+      </div>
+
+      {/* Pressure bar (sell ← center → buy) */}
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600, marginBottom: '4px' }}>
+          <span>SELL PRESSURE</span>
+          <span>BUY PRESSURE</span>
+        </div>
+        <div style={{
+          position: 'relative', height: '8px', background: 'rgba(255,255,255,0.05)',
+          borderRadius: '4px', border: '1px solid var(--border)', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: '1px', background: 'var(--border)' }} />
+          <div style={{
+            position: 'absolute', top: 0, bottom: 0,
+            left: pct >= 0 ? '50%' : `${50 + pct * 50}%`,
+            width: `${Math.abs(pct) * 50}%`,
+            background: barColor,
+            opacity: 0.85,
+          }} />
+        </div>
+      </div>
+
+      {/* DOM imbalance */}
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600, marginBottom: '4px' }}>
+          <span>BIDS BELOW {support}</span>
+          <span>{resistance} ASKS ABOVE</span>
+        </div>
+        <div style={{
+          position: 'relative', height: '8px', background: 'rgba(255,255,255,0.05)',
+          borderRadius: '4px', border: '1px solid var(--border)', overflow: 'hidden', display: 'flex',
+        }}>
+          <div style={{ width: `${100 - askPct}%`, background: 'var(--green)', opacity: 0.65 }} />
+          <div style={{ width: `${askPct}%`, background: 'var(--red)', opacity: 0.65 }} />
+        </div>
+        <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginTop: '4px' }}>
+          {snapshot.bestBid != null && snapshot.bestAsk != null
+            ? `bid ${snapshot.bestBid.toFixed(2)} / ask ${snapshot.bestAsk.toFixed(2)}`
+            : 'no quote'}
+        </div>
+      </div>
+
+      {/* Live two-sided read */}
+      {live ? (
+        <div style={{ paddingTop: '8px', borderTop: '1px solid rgba(56,189,248,0.15)' }}>
+          <div style={{ fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600, marginBottom: '6px' }}>
+            IF PRICE BROKE NOW @ {live.refPrice.toFixed(2)}
+          </div>
+          <VerdictRow side="LONG" assessment={live.long} />
+          <div style={{ height: '6px' }} />
+          <VerdictRow side="SHORT" assessment={live.short} />
+        </div>
+      ) : lastAssessment ? (
+        <div style={{ paddingTop: '8px', borderTop: '1px solid rgba(56,189,248,0.15)' }}>
+          <div style={{ fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600, marginBottom: '6px' }}>
+            LAST BREAKOUT ASSESSMENT
+          </div>
+          <VerdictRow side="LAST" assessment={lastAssessment} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function VerdictRow({ side, assessment }: { side: string; assessment: OrderflowAssessment }) {
+  const v = VERDICT_STYLES[assessment.verdict]
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+        <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 700, width: '46px' }}>{side}</span>
+        <span style={{
+          fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em',
+          padding: '1px 6px', borderRadius: '3px',
+          background: `${v.color === 'var(--green)' ? 'rgba(0,230,118,0.15)' : v.color === 'var(--yellow)' ? 'rgba(255,193,7,0.15)' : 'rgba(255,61,61,0.15)'}`,
+          color: v.color,
+          border: `1px solid ${v.color === 'var(--green)' ? 'rgba(0,230,118,0.3)' : v.color === 'var(--yellow)' ? 'rgba(255,193,7,0.3)' : 'rgba(255,61,61,0.3)'}`,
+        }}>
+          {v.label}
+        </span>
+        {!assessment.available && (
+          <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontStyle: 'italic' }}>fail-open</span>
+        )}
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '54px', lineHeight: 1.4 }}>
+        {assessment.reasons.join(' · ')}
+      </div>
+    </div>
+  )
+}
+
+// ─── VETO FEED ──────────────────────────────────────────────────────────────
+
+function VetoFeed({ vetoes }: { vetoes: { count: number; reasons: string[] } }) {
+  if (!vetoes || vetoes.count === 0) return null
+  return (
+    <div style={{ marginTop: '16px' }}>
+      <div style={{ fontSize: '10px', color: 'var(--text-dim)', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '8px' }}>
+        VETOES TODAY ({vetoes.count})
+      </div>
+      {vetoes.reasons.map((r, i) => (
+        <div key={i} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px',
+          padding: '6px 0',
+          borderBottom: i < vetoes.reasons.length - 1 ? '1px solid var(--border)' : 'none',
+        }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--red)', letterSpacing: '0.06em' }}>VETO</span>
+          <span style={{ flex: 1, fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{r}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── DEBRIEF CARD ───────────────────────────────────────────────────────────
+
+function DebriefCard({ debrief }: { debrief: string | null }) {
+  const [open, setOpen] = useState(true)
+  if (!debrief) return null
+  return (
+    <div style={{
+      background: 'rgba(99,102,241,0.04)',
+      border: '1px solid rgba(99,102,241,0.2)',
+      borderRadius: '8px', padding: '12px 14px', marginTop: '16px',
+    }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          color: 'rgba(129,140,248,0.95)', textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: '10px', letterSpacing: '0.08em', fontWeight: 700 }}>
+          {open ? '▾' : '▸'} TODAY'S DEBRIEF
+        </span>
+      </button>
+      {open && (
+        <div style={{
+          fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.55,
+          marginTop: '8px', whiteSpace: 'pre-wrap',
+        }}>
+          {debrief}
+        </div>
+      )}
     </div>
   )
 }
