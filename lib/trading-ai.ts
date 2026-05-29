@@ -10,6 +10,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { MarketBriefing, MacroSentiment } from './market-data'
 import type { SessionImpact } from './calendar-intel'
 import type { OrderflowAssessment } from './orderflow'
+import type { PatternGate, VolumeGate } from './breakout-gate'
+import type { EngineCandle } from './candles'
 
 let _client: Anthropic | null = null
 
@@ -78,7 +80,37 @@ WHEN TO SKIP (NO TRADE):
 - After 2 losses, stop for the day.
 - Friday afternoon — avoid weekend gap risk
 
-Always explain your reasoning concisely. Be specific about what data drove each decision, especially the contract count.`
+ORB TRAP & REVERSAL PLAYBOOK (apply at the moment a break candle closes past OR ± buffer):
+
+— Trap signatures (these mean DO NOT ENTER the break direction; opposing setup may be forming):
+- Doji at OR boundary = market in indecision. Skip. A doji is not a breakout — it is a stall.
+- Shooting Star at OR High = sellers absorbed the breakout buyers. Reverse short setup forming.
+- Hammer at OR Low = stop-hunt complete, buyers stepped in. Reverse long setup forming.
+- Bearish Engulfing at OR High = single-candle reversal; exit any longs immediately.
+- Bullish Engulfing at OR Low = single-candle reversal; exit any shorts immediately.
+- Bearish/Bullish Pin Bar against the break direction = liquidity sweep trap. Stops were harvested.
+- Inverted Hammer in mixed context = unconfirmed reversal; wait one more bar.
+
+— Confirmation signatures (these green-light the break direction with conviction):
+- 3-Candle Bull/Bear Stack past the OR = sustained institutional flow. High-conviction entry.
+- Bullish/Bearish Marubozu past the OR = momentum candle #1. Enter the pullback (50-61.8% Fib), not the chase.
+- Bullish Engulfing at OR High break (rare — usually after a pullback inside OR) = clean re-entry.
+- Same-direction Pin Bar past OR (long lower wick on a LONG, long upper wick on a SHORT) = swept then snapped.
+- Strong Bull/Bear Candle (body > 60% of range) past OR = real momentum, not a wick.
+
+— Reverse-breakout pattern:
+- If price breaks OR High, closes back inside OR within 1 bar, and the next bar shows bearish reversal (engulfing/pin/star) — that is a textbook reverse setup. The other side's stops are now visible.
+- Treat a failed LONG break followed by bear-conviction patterns as a SHORT opportunity (not just a skip).
+
+— Volume rule:
+- Break-bar volume must be at minimum ~equal to the trailing 20-bar average. <0.8x = no real participation, treat as fake. ≥1.4x = strong conviction, size up within hardCap.
+
+— Combined gate logic (mechanical gates run BEFORE you, so when you receive a signal:
+- A 'veto' from any gate (pattern / volume / order flow) means the engine already filtered the trade out — you will not be asked.
+- A 'caution' from any gate means proceed only if your confidence is high; otherwise size down to 1 contract or skip.
+- A 'confirm' from a gate is a tailwind — but never a substitute for your own assessment.)
+
+Always explain your reasoning concisely. Be specific about what data drove each decision, especially the contract count. When candle pattern + order flow + volume all agree, say so explicitly.`
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
 
@@ -252,6 +284,9 @@ export async function analyzeBreakout(
     trailingDrawdownRemaining: number
   },
   orderflow: OrderflowAssessment | null = null,
+  patternGate: PatternGate | null = null,
+  volumeGate: VolumeGate | null = null,
+  breakBar: EngineCandle | null = null,
 ): Promise<BreakoutDecision> {
   const riskPts = Math.abs(entryPrice - stopPrice)
   const rewardPts = Math.abs(targetPrice - entryPrice)
@@ -301,8 +336,22 @@ ${orderflow && orderflow.available
 - Delta divergence: ${orderflow.divergence} | resting wall ahead: ${orderflow.wallRisk} (${orderflow.resistanceVol} ahead vs ${orderflow.supportVol} behind)
 - Order-flow read: ${orderflow.verdict.toUpperCase()} — ${orderflow.reasons.join('; ')}${orderflow.verdict === 'caution' ? '\n  ⚠️ Flow is cautious: require strong conviction or size down.' : ''}`
   : '\nORDER FLOW: unavailable/stale — decide on price action + context only.'}
+${breakBar
+  ? `\nCANDLE READ (just-closed 1-min break bar):
+- O:${breakBar.open.toFixed(2)} H:${breakBar.high.toFixed(2)} L:${breakBar.low.toFixed(2)} C:${breakBar.close.toFixed(2)}
+- Body: ${Math.abs(breakBar.close - breakBar.open).toFixed(2)}pts | Range: ${(breakBar.high - breakBar.low).toFixed(2)}pts | Ticks: ${breakBar.ticks}`
+  : '\nCANDLE READ: no closed bar available (early in session or stale tape).'}
+${patternGate && patternGate.patternName
+  ? `- Pattern: ${patternGate.patternName} (${patternGate.patternSignal}, strength ${patternGate.patternStrength}%) — gate ${patternGate.verdict.toUpperCase()}
+- ORB context: ${patternGate.orbContext ?? 'n/a'}`
+  : '- Pattern: no recognizable pattern on the break bar — gate NEUTRAL'}
+${volumeGate
+  ? `\nVOLUME:
+- Break bar: ${volumeGate.breakVolume} | 20-bar avg: ${volumeGate.avgVolume.toFixed(0)} | ratio ${volumeGate.ratio.toFixed(2)}× → gate ${volumeGate.verdict.toUpperCase()}`
+  : '\nVOLUME: baseline unavailable — gate NEUTRAL'}
 
-Enter or skip? If entering, choose contracts (1-${hardCap}) based on confidence and risk.`
+Enter or skip? If entering, choose contracts (1-${hardCap}) based on confidence and risk.
+Cite the pattern, volume ratio, and delta in your reasoning so the decision is auditable.`
 
   try {
     const response = await getClient().messages.create({
@@ -580,10 +629,10 @@ function buildDebriefPrompt(i: SessionDebriefInput): string {
   sec.push(`\nDAILY P&L: $${i.dailyPnl >= 0 ? '+' : ''}${i.dailyPnl.toFixed(2)} | W/L: ${i.winsCount}/${i.lossesCount}`)
 
   if (i.vetoCount > 0) {
-    sec.push(`\nORDER-FLOW VETOES (${i.vetoCount}) — breakouts skipped because the tape/DOM didn't back them:`)
-    for (const r of i.vetoReasons.slice(0, 5)) sec.push(`- ${r}`)
+    sec.push(`\nBREAKOUT VETOES (${i.vetoCount}) — breaks skipped by the pattern / volume / order-flow gates. Each reason is tagged [source]:`)
+    for (const r of i.vetoReasons.slice(0, 8)) sec.push(`- ${r}`)
   }
 
-  sec.push(`\nAssess: did we follow the plan? Was sitting out / vetoing the right call given the outcome? One thing to watch next session. Keep it tight and useful.`)
+  sec.push(`\nAssess: did we follow the plan? Was sitting out / vetoing the right call given the outcome? Mention pattern or volume reads when relevant. One thing to watch next session. Keep it tight and useful.`)
   return sec.join('\n')
 }

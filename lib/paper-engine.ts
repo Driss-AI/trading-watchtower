@@ -39,6 +39,23 @@ import {
   type OrderflowAssessment,
   type OrderflowSnapshot,
 } from './orderflow'
+import {
+  startCandles,
+  resetCandlesDay,
+  getLatestClosedCandle,
+  getRecentCandles,
+  getAvgVolume,
+  getCandleSnapshot,
+  type CandleSnapshot,
+  type EngineCandle,
+} from './candles'
+import {
+  evaluatePatternGate,
+  evaluateVolumeGate,
+  combineVerdicts,
+  type PatternGate,
+  type VolumeGate,
+} from './breakout-gate'
 import { sendTelegramAlert } from './telegram'
 
 // ─── TELEGRAM HELPER ────────────────────────────────────────────────────────
@@ -86,6 +103,16 @@ interface EngineConfig {
   sessionEndMinute: number // NY minutes (e.g., 690 = 11:30 AM)
   enableBreakevenStop: boolean
   enableOrderflowVeto: boolean // hard-skip breakouts on strong delta divergence / absorbing wall
+  enableWaitForClose: boolean // require the 1-min bar to close past OR before entering
+  enablePatternGate: boolean  // hard-skip trap patterns (shooting star / doji / etc.) at the break
+  enableVolumeGate: boolean   // hard-skip thin break bars (<0.8x 20-bar average volume)
+}
+
+export interface PendingBreak {
+  direction: 'LONG' | 'SHORT'
+  armedAtPrice: number
+  armedAtTs: number
+  armedAtBarTime: number // bar that was open when we armed; we won't act until a later bar closes
 }
 
 export interface AIState {
@@ -112,6 +139,10 @@ export interface PaperEngineState {
   todayTrades: ClosedPaperTrade[]
   config: EngineConfig
   ai: AIState
+  pendingBreak: PendingBreak | null
+  candles: CandleSnapshot | null
+  lastPatternGate: PatternGate | null
+  lastVolumeGate: VolumeGate | null
   orderflow: OrderflowSnapshot | null
   lastOrderflow: OrderflowAssessment | null
   orderflowVetoes: { count: number; reasons: string[] }
@@ -191,7 +222,16 @@ let _config: EngineConfig = {
   sessionEndMinute: 690, // 11:30 AM ET
   enableBreakevenStop: false,
   enableOrderflowVeto: true,
+  enableWaitForClose: true,
+  enablePatternGate: true,
+  enableVolumeGate: true,
 }
+
+// Wait-for-close state — arm on tick cross, evaluate on next 1-min close.
+let _pendingBreak: PendingBreak | null = null
+let _lastEvaluatedBarTime = 0
+let _lastPatternGate: PatternGate | null = null
+let _lastVolumeGate: VolumeGate | null = null
 
 // AI state
 let _preSession: PreSessionDecision | null = null
@@ -426,7 +466,12 @@ function checkDayReset(): void {
     _ofVetoCount = 0
     _ofVetoReasons = []
     _lastDebrief = null
+    _pendingBreak = null
+    _lastEvaluatedBarTime = 0
+    _lastPatternGate = null
+    _lastVolumeGate = null
     resetOrderflowDay()
+    resetCandlesDay()
   }
 }
 
@@ -489,8 +534,14 @@ function handleMonitoring(price: number): void {
     return
   }
 
-  // Check entry (if no open position)
-  checkEntry(price)
+  // Tick-side: arm a pending break when price first crosses OR ± buffer.
+  // (Bypass wait-for-close path entirely when the flag is off — old tick-on-cross behavior.)
+  if (_config.enableWaitForClose) {
+    armPendingIfTriggered(price)
+    evaluatePendingOnClose()
+  } else {
+    checkEntry(price)
+  }
 }
 
 let _sessionSummarySent = false
@@ -544,6 +595,167 @@ async function sendSessionDebrief(): Promise<void> {
 // ─── ENTRY LOGIC ─────────────────────────────────────────────────────────────
 
 let _entryLock = false
+
+// Pass guard checks shared between the legacy tick path and the wait-for-close path.
+function passesGuards(): boolean {
+  if (!_settings) return false
+  if (_orHigh === null || _orLow === null) return false
+  if (_tradesCount >= _settings.maxTradesPerDay) return false
+  if (_lossesCount >= _settings.maxLosingTradesPerDay) return false
+  if (_dailyPnl <= -_settings.dailyLossLimit) return false
+  if (_preSession && !_preSession.shouldTrade) return false
+  if (_orAssessment && !_orAssessment.shouldTrade) return false
+  return true
+}
+
+// Direction filter shared by both paths.
+function directionAllowed(direction: 'LONG' | 'SHORT'): boolean {
+  if (_preSession && _preSession.bias !== 'neutral') {
+    const aiBias = _preSession.bias === 'long' ? 'LONG' : 'SHORT'
+    if (direction !== aiBias) {
+      console.log(`[PaperEngine] AI filtered: ${direction} trade blocked, bias is ${_preSession.bias}`)
+      return false
+    }
+  }
+  if (_orAssessment && _orAssessment.preferredDirection !== 'either' && _orAssessment.preferredDirection !== 'none') {
+    const orBias = _orAssessment.preferredDirection === 'long' ? 'LONG' : 'SHORT'
+    if (direction !== orBias) {
+      console.log(`[PaperEngine] AI OR filtered: ${direction} trade blocked, OR prefers ${_orAssessment.preferredDirection}`)
+      return false
+    }
+  }
+  return true
+}
+
+// Record a veto (any source) into the shared veto feed.
+function recordVeto(source: 'pattern' | 'volume' | 'orderflow', direction: 'LONG' | 'SHORT', refPrice: number, message: string): void {
+  _ofVetoCount++
+  if (_ofVetoReasons.length < 20) {
+    _ofVetoReasons.push(`[${source}] ${direction} @ ${refPrice.toFixed(2)}: ${message}`)
+  }
+  console.log(`[PaperEngine] ${source.toUpperCase()} VETO: ${direction} — ${message}`)
+}
+
+// Arm a pending breakout when the live tick first crosses OR ± buffer.
+// We do not enter on the tick — we wait for the next 1-min bar to close.
+function armPendingIfTriggered(price: number): void {
+  if (_entryLock || _pendingBreak) return
+  if (!passesGuards()) return
+  if (_orHigh === null || _orLow === null) return
+
+  const longTrigger = _orHigh + _config.bufferPoints
+  const shortTrigger = _orLow - _config.bufferPoints
+
+  let direction: 'LONG' | 'SHORT' | null = null
+  if (price > longTrigger) direction = 'LONG'
+  else if (price < shortTrigger) direction = 'SHORT'
+  if (!direction) return
+
+  if (!directionAllowed(direction)) return
+
+  const live = getLatestClosedCandle()
+  _pendingBreak = {
+    direction,
+    armedAtPrice: price,
+    armedAtTs: Date.now(),
+    armedAtBarTime: live ? live.time : 0,
+  }
+  console.log(`[PaperEngine] Pending ${direction} break armed @ ${price.toFixed(2)} — waiting for 1-min close`)
+  notify(`⏳ <b>BREAK ARMED</b>\n${direction} @ ${price.toFixed(2)}\nWaiting for 1-min close to confirm`)
+}
+
+// Once per closed 1-min bar, evaluate any armed pending break:
+//   - If the close pulled back inside OR → cancel the arm (false break).
+//   - If still beyond, run pattern + volume + order-flow gates.
+//   - If any gate vetoes → log and clear.
+//   - Otherwise consult the AI breakout decision with the enriched context.
+function evaluatePendingOnClose(): void {
+  if (!_pendingBreak || _entryLock) return
+  if (!passesGuards()) return
+  if (_orHigh === null || _orLow === null) return
+
+  const latest = getLatestClosedCandle()
+  if (!latest) return
+  if (latest.time <= _lastEvaluatedBarTime) return
+  // Don't act on the very bar we armed on — we need at least one fully-closed bar afterwards.
+  if (latest.time <= _pendingBreak.armedAtBarTime) return
+  _lastEvaluatedBarTime = latest.time
+
+  const { direction } = _pendingBreak
+
+  // Did the close come back inside the OR? (false break)
+  const closedInsideLong  = direction === 'LONG'  && latest.close <= _orHigh
+  const closedInsideShort = direction === 'SHORT' && latest.close >= _orLow
+  if (closedInsideLong || closedInsideShort) {
+    console.log(`[PaperEngine] Pending ${direction} break failed — bar closed back inside OR (${latest.close.toFixed(2)})`)
+    notify(`↩️ <b>FALSE BREAK</b>\n${direction} closed back inside OR @ ${latest.close.toFixed(2)} — arm cleared`)
+    _pendingBreak = null
+    return
+  }
+
+  // Pattern gate
+  const recent = getRecentCandles(5)
+  const patternGate = evaluatePatternGate(direction, recent)
+  _lastPatternGate = patternGate
+  if (_config.enablePatternGate && patternGate.verdict === 'veto') {
+    recordVeto('pattern', direction, latest.close, patternGate.reasons.join(' — '))
+    notify(`⛔ <b>PATTERN VETO</b>\n${direction} @ ${latest.close.toFixed(2)}\n${patternGate.patternName ?? '?'} (${patternGate.patternStrength ?? 0}%)\n${patternGate.orbContext ?? ''}`)
+    _pendingBreak = null
+    return
+  }
+
+  // Volume gate
+  const avgVol = getAvgVolume(20)
+  const volumeGate = evaluateVolumeGate(latest.volume, avgVol)
+  _lastVolumeGate = volumeGate
+  if (_config.enableVolumeGate && volumeGate.verdict === 'veto') {
+    recordVeto('volume', direction, latest.close, volumeGate.reasons.join(' — '))
+    notify(`⛔ <b>VOLUME VETO</b>\n${direction} @ ${latest.close.toFixed(2)}\nBreak bar ${volumeGate.breakVolume} vs ${volumeGate.avgVolume.toFixed(0)} avg (${volumeGate.ratio.toFixed(2)}×)`)
+    _pendingBreak = null
+    return
+  }
+
+  // Order-flow gate
+  const orderflow = assessBreakout(direction, latest.close)
+  _lastOrderflow = orderflow
+  if (_config.enableOrderflowVeto && orderflow.verdict === 'veto') {
+    recordVeto('orderflow', direction, latest.close, orderflow.reasons.join('; '))
+    notify(`⛔ <b>ORDER-FLOW VETO</b>\n${direction} @ ${latest.close.toFixed(2)}\n${orderflow.reasons.join('\n')}`)
+    _pendingBreak = null
+    return
+  }
+
+  // Position sizing
+  const orSize = _orHigh - _orLow
+  const stopPrice = direction === 'LONG' ? _orLow : _orHigh
+  const targetPrice = direction === 'LONG'
+    ? latest.close + orSize * _config.targetMultiple
+    : latest.close - orSize * _config.targetMultiple
+
+  const riskCalc = calculateRisk({
+    market: 'MNQ', entry: latest.close, stop: stopPrice, target: targetPrice,
+    contracts: _config.maxContracts, accountSize: _settings!.accountSize,
+    dailyLossLimit: _settings!.dailyLossLimit, currentDailyPnl: _dailyPnl,
+  })
+  if (riskCalc.violatesLimit) {
+    console.log(`[PaperEngine] Entry blocked — risk violation: ${riskCalc.violationMessage}`)
+    _pendingBreak = null
+    return
+  }
+
+  const mechanicalContracts = Math.min(_config.maxContracts, Math.max(1, riskCalc.maxContractsAllowed))
+
+  _entryLock = true
+  const pendingDirection = direction
+  consultAIForBreakout(
+    direction, latest.close, stopPrice, targetPrice, mechanicalContracts,
+    orderflow, patternGate, volumeGate, latest,
+  )
+    .finally(() => {
+      _entryLock = false
+      if (_pendingBreak && _pendingBreak.direction === pendingDirection) _pendingBreak = null
+    })
+}
 
 function checkEntry(price: number): void {
   if (_entryLock) return
@@ -653,6 +865,9 @@ async function consultAIForBreakout(
   targetPrice: number,
   mechanicalContracts: number,
   orderflow: OrderflowAssessment | null = null,
+  patternGate: PatternGate | null = null,
+  volumeGate: VolumeGate | null = null,
+  breakBar: EngineCandle | null = null,
 ): Promise<void> {
   if (!_orHigh || !_orLow) return
 
@@ -679,6 +894,9 @@ async function consultAIForBreakout(
         trailingDrawdownRemaining: _settings ? _settings.dailyLossLimit * 2 : 2000,
       },
       orderflow,
+      patternGate,
+      volumeGate,
+      breakBar,
     )
     _lastBreakout = decision
     _aiAnalysisInProgress = false
@@ -790,6 +1008,12 @@ async function openPosition(
   if (_preSession) aiParts.push(`Pre-session: ${_preSession.reasoning}`)
   if (_orAssessment) aiParts.push(`OR: ${_orAssessment.quality} — ${_orAssessment.reasoning}`)
   if (_lastBreakout) aiParts.push(`Breakout: ${_lastBreakout.reasoning}`)
+  if (_lastPatternGate?.patternName) {
+    aiParts.push(`Pattern: ${_lastPatternGate.patternName} (${_lastPatternGate.patternSignal}, ${_lastPatternGate.patternStrength}%) — gate ${_lastPatternGate.verdict}`)
+  }
+  if (_lastVolumeGate && _lastVolumeGate.avgVolume > 0) {
+    aiParts.push(`Volume: ${_lastVolumeGate.ratio.toFixed(2)}× avg — gate ${_lastVolumeGate.verdict}`)
+  }
   if (_lastOrderflow?.available) aiParts.push(`Order flow: ${_lastOrderflow.verdict} — ${_lastOrderflow.reasons.join('; ')}`)
   const aiReasoning = aiParts.length > 0 ? aiParts.join(' | ') : null
 
@@ -937,7 +1161,8 @@ export async function startEngine(): Promise<void> {
     await connectMarketHub()
     await subscribeToQuote(_contractId)
     await startOrderflow(_contractId)
-    console.log(`[PaperEngine] Subscribed to ${_contractId} (quotes + order flow)`)
+    await startCandles(_contractId)
+    console.log(`[PaperEngine] Subscribed to ${_contractId} (quotes + order flow + candles)`)
   } catch (err) {
     console.error('[PaperEngine] Failed to connect to market stream:', err)
     notify(`🔴 <b>ENGINE START FAILED</b>\nCould not connect to MNQ stream\n${String(err)}`)
@@ -1076,6 +1301,10 @@ export function getEngineState(): PaperEngineState {
         lastBreakout: _lastBreakout,
         analysisInProgress: _aiAnalysisInProgress,
       },
+      pendingBreak: _pendingBreak,
+      candles: getCandleSnapshot(),
+      lastPatternGate: _lastPatternGate,
+      lastVolumeGate: _lastVolumeGate,
       orderflow: getOrderflowSnapshot(),
       lastOrderflow: _lastOrderflow,
       orderflowVetoes: { count: _ofVetoCount, reasons: _ofVetoReasons },
@@ -1106,6 +1335,10 @@ export function getEngineState(): PaperEngineState {
     todayTrades: [],
     config: { ..._config },
     ai: { preSession: null, orAssessment: null, lastBreakout: null, analysisInProgress: false },
+    pendingBreak: null,
+    candles: null,
+    lastPatternGate: null,
+    lastVolumeGate: null,
     orderflow: null,
     lastOrderflow: null,
     orderflowVetoes: { count: 0, reasons: [] },

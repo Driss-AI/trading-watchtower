@@ -82,6 +82,47 @@ interface OrderflowSnapshot {
   live: OrderflowLive | null
 }
 
+type GateVerdict = 'confirm' | 'caution' | 'neutral' | 'veto'
+
+interface PatternGate {
+  verdict: GateVerdict
+  patternName: string | null
+  patternSignal: 'bullish' | 'bearish' | 'neutral' | 'caution' | null
+  patternStrength: number | null
+  orbContext: string | null
+  reasons: string[]
+}
+
+interface VolumeGate {
+  verdict: GateVerdict
+  breakVolume: number
+  avgVolume: number
+  ratio: number
+  reasons: string[]
+}
+
+interface EngineCandle {
+  open: number; high: number; low: number; close: number
+  time: number; ticks: number; volume: number
+}
+
+interface CandleSnapshot {
+  available: boolean
+  contractId: string
+  closedBars: number
+  lastTradeAgoMs: number | null
+  latestClosed: EngineCandle | null
+  live: EngineCandle | null
+  avgVolume20: number
+}
+
+interface PendingBreak {
+  direction: 'LONG' | 'SHORT'
+  armedAtPrice: number
+  armedAtTs: number
+  armedAtBarTime: number
+}
+
 interface EngineState {
   enabled: boolean
   phase: 'idle' | 'forming' | 'monitoring' | 'closed'
@@ -104,8 +145,15 @@ interface EngineState {
     sessionEndMinute: number
     enableBreakevenStop: boolean
     enableOrderflowVeto: boolean
+    enableWaitForClose: boolean
+    enablePatternGate: boolean
+    enableVolumeGate: boolean
   }
   ai: AIState
+  pendingBreak: PendingBreak | null
+  candles: CandleSnapshot | null
+  lastPatternGate: PatternGate | null
+  lastVolumeGate: VolumeGate | null
   orderflow: OrderflowSnapshot | null
   lastOrderflow: OrderflowAssessment | null
   orderflowVetoes: { count: number; reasons: string[] }
@@ -288,6 +336,17 @@ export default function PaperTrading() {
 
           {/* Order Flow Panel */}
           <OrderFlowPanel snapshot={state.orderflow} lastAssessment={state.lastOrderflow} vetoOn={vetoOn} />
+
+          {/* Candle Read Panel */}
+          <CandleReadPanel
+            snapshot={state.candles}
+            patternGate={state.lastPatternGate}
+            volumeGate={state.lastVolumeGate}
+            pendingBreak={state.pendingBreak}
+            patternGateOn={state.config.enablePatternGate ?? true}
+            volumeGateOn={state.config.enableVolumeGate ?? true}
+            waitForCloseOn={state.config.enableWaitForClose ?? true}
+          />
 
           {/* Opening Range + Price Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
@@ -757,6 +816,167 @@ function VetoFeed({ vetoes }: { vetoes: { count: number; reasons: string[] } }) 
           <span style={{ flex: 1, fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{r}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── CANDLE READ PANEL ──────────────────────────────────────────────────────
+
+const SIGNAL_COLOR: Record<string, string> = {
+  bullish: 'var(--green)',
+  bearish: 'var(--red)',
+  caution: 'var(--yellow)',
+  neutral: 'var(--text-secondary)',
+}
+
+const VERDICT_COLOR: Record<GateVerdict, string> = {
+  confirm: 'var(--green)',
+  caution: 'var(--yellow)',
+  neutral: 'var(--text-secondary)',
+  veto:    'var(--red)',
+}
+
+function CandleReadPanel({
+  snapshot, patternGate, volumeGate, pendingBreak,
+  patternGateOn, volumeGateOn, waitForCloseOn,
+}: {
+  snapshot: CandleSnapshot | null
+  patternGate: PatternGate | null
+  volumeGate: VolumeGate | null
+  pendingBreak: PendingBreak | null
+  patternGateOn: boolean
+  volumeGateOn: boolean
+  waitForCloseOn: boolean
+}) {
+  if (!snapshot) {
+    return (
+      <div style={{
+        background: 'rgba(250,204,21,0.04)',
+        border: '1px solid rgba(250,204,21,0.18)',
+        borderRadius: '8px', padding: '12px 14px', marginBottom: '16px',
+      }}>
+        <div style={{ fontSize: '10px', color: 'rgba(253,224,71,0.9)', letterSpacing: '0.08em', fontWeight: 700 }}>
+          CANDLE READ
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Waiting for trade tape…</div>
+      </div>
+    )
+  }
+
+  const bar = snapshot.latestClosed
+  const live = snapshot.live
+  const ago = snapshot.lastTradeAgoMs == null ? '—' : snapshot.lastTradeAgoMs < 1000 ? '<1s' : `${Math.round(snapshot.lastTradeAgoMs / 1000)}s`
+
+  return (
+    <div style={{
+      background: 'rgba(250,204,21,0.04)',
+      border: '1px solid rgba(250,204,21,0.18)',
+      borderRadius: '8px', padding: '14px 16px', marginBottom: '16px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ fontSize: '10px', color: 'rgba(253,224,71,0.95)', letterSpacing: '0.08em', fontWeight: 700 }}>
+            CANDLE READ
+          </div>
+          <span style={{
+            fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em',
+            padding: '1px 6px', borderRadius: '3px',
+            background: snapshot.available ? 'rgba(0,230,118,0.12)' : 'rgba(255,255,255,0.06)',
+            color: snapshot.available ? 'var(--green)' : 'var(--text-dim)',
+            border: `1px solid ${snapshot.available ? 'rgba(0,230,118,0.25)' : 'var(--border)'}`,
+          }}>
+            {snapshot.available ? 'LIVE' : 'STALE — FAIL-OPEN'}
+          </span>
+          <span style={{ fontSize: '9px', color: 'var(--text-dim)' }}>1-min bars · {snapshot.closedBars} closed</span>
+        </div>
+        <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>last print {ago}</span>
+      </div>
+
+      {pendingBreak && (
+        <div style={{
+          background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.3)',
+          borderRadius: '6px', padding: '8px 10px', marginBottom: '10px',
+          display: 'flex', alignItems: 'center', gap: '8px',
+        }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(125,211,252,0.95)' }}>⏳ ARMED</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+            {pendingBreak.direction} @ {pendingBreak.armedAtPrice.toFixed(2)} — waiting for next 1-min close
+          </span>
+        </div>
+      )}
+
+      {bar && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px', marginBottom: '10px' }}>
+          <MiniStat label="O" value={bar.open.toFixed(2)} />
+          <MiniStat label="H" value={bar.high.toFixed(2)} color="var(--green)" />
+          <MiniStat label="L" value={bar.low.toFixed(2)} color="var(--red)" />
+          <MiniStat label="C" value={bar.close.toFixed(2)} color={bar.close >= bar.open ? 'var(--green)' : 'var(--red)'} />
+          <MiniStat label="VOL" value={String(bar.volume)} />
+          <MiniStat label="AVG20" value={snapshot.avgVolume20 > 0 ? snapshot.avgVolume20.toFixed(0) : '—'} />
+        </div>
+      )}
+
+      {patternGate && (
+        <div style={{ paddingTop: '8px', borderTop: '1px solid rgba(250,204,21,0.15)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600 }}>PATTERN</span>
+            <span style={{
+              fontSize: '11px', fontWeight: 700,
+              color: patternGate.patternSignal ? SIGNAL_COLOR[patternGate.patternSignal] : 'var(--text-secondary)',
+            }}>
+              {patternGate.patternName ?? 'none'}
+            </span>
+            {patternGate.patternStrength != null && (
+              <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>{patternGate.patternStrength}%</span>
+            )}
+            <span style={{
+              fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em',
+              padding: '1px 6px', borderRadius: '3px',
+              color: VERDICT_COLOR[patternGate.verdict],
+              border: `1px solid ${VERDICT_COLOR[patternGate.verdict]}55`,
+            }}>
+              {patternGate.verdict.toUpperCase()}
+            </span>
+            {!patternGateOn && (
+              <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontStyle: 'italic' }}>gate off</span>
+            )}
+          </div>
+          {patternGate.orbContext && (
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {patternGate.orbContext}
+            </div>
+          )}
+        </div>
+      )}
+
+      {volumeGate && volumeGate.avgVolume > 0 && (
+        <div style={{ paddingTop: '6px', marginTop: '6px', borderTop: '1px solid rgba(250,204,21,0.10)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 600 }}>VOLUME</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+              {volumeGate.breakVolume} vs {volumeGate.avgVolume.toFixed(0)} avg → {volumeGate.ratio.toFixed(2)}×
+            </span>
+            <span style={{
+              fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em',
+              padding: '1px 6px', borderRadius: '3px',
+              color: VERDICT_COLOR[volumeGate.verdict],
+              border: `1px solid ${VERDICT_COLOR[volumeGate.verdict]}55`,
+            }}>
+              {volumeGate.verdict.toUpperCase()}
+            </span>
+            {!volumeGateOn && (
+              <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontStyle: 'italic' }}>gate off</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {live && (
+        <div style={{ paddingTop: '6px', marginTop: '6px', borderTop: '1px solid rgba(250,204,21,0.10)', fontSize: '10px', color: 'var(--text-dim)' }}>
+          live bar: O {live.open.toFixed(2)} · C {live.close.toFixed(2)} · vol {live.volume} · {live.ticks} ticks
+          {!waitForCloseOn && <span style={{ marginLeft: '8px', color: 'var(--yellow)', fontStyle: 'italic' }}>wait-for-close OFF</span>}
+        </div>
+      )}
     </div>
   )
 }
