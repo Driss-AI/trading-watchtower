@@ -3,6 +3,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getPrimaryAccount, getTrades, type TSXTrade } from '@/lib/topstepx'
 
+// GET /api/trades?limit=200 — list trades for the journal (newest first).
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const limit = Math.min(500, Math.max(1, parseInt(searchParams.get('limit') ?? '200')))
+    const trades = await prisma.trade.findMany({
+      where: { status: { not: 'OPEN' } },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+      take: limit,
+      select: {
+        id: true, date: true, time: true, market: true, direction: true,
+        contracts: true, entry: true, exit: true,
+        resultDollars: true, grossPnl: true, tradeFees: true,
+        status: true, notes: true, aiReasoning: true, source: true,
+      },
+    })
+    return NextResponse.json({ trades })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[Trades GET]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
+
 // POST /api/trades/import?days=7 — import trades from TopStepX
 // Groups fills into round-trip trades by tracking net position.
 // Deduplicates fills by ID and removes mirror round trips.

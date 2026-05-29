@@ -6,6 +6,8 @@ interface DailyRow { date: string; trades: number; wins: number; losses: number;
 interface Criterion { label: string; passed: boolean; value: string }
 interface RecentTrade { id: string; date: string; time: string | null; direction: string; contracts: number; entry: number; exit: number | null; resultPts: number | null; resultDollars: number | null; resultR: number | null; status: string; aiReasoning: string | null }
 
+interface Debrief { date: string; text: string | null }
+
 interface PaperStats {
   totalTrades: number; totalDays: number; wins: number; losses: number; winRate: string
   totalPnl: number; totalR: number; avgR: number; expectancy: number; profitFactor: string
@@ -14,6 +16,7 @@ interface PaperStats {
   streak: { current: number; type: 'win' | 'loss' | null; longestWin: number; longestLoss: number }
   aiPct: number; criteria: Criterion[]; criteriaPassedCount: number; allCriteriaMet: boolean
   dailyBreakdown: DailyRow[]; recentTrades: RecentTrade[]
+  debriefs: Debrief[]
   byDirection: { LONG: { trades: number; pnl: number }; SHORT: { trades: number; pnl: number } }
 }
 
@@ -194,7 +197,48 @@ export default function PaperPage() {
               <div style={{ color: 'var(--text-dim)', fontSize: '12px' }}>No paper trades recorded yet.</div>
             )}
           </div>
+
+          {/* F. Session Debriefs */}
+          {stats.debriefs && stats.debriefs.length > 0 && (
+            <div className="card" style={{ marginTop: '20px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-dim)', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px' }}>
+                SESSION DEBRIEFS ({stats.debriefs.length} most recent)
+              </div>
+              {stats.debriefs.map((d) => (
+                <DebriefRow key={d.date} debrief={d} />
+              ))}
+            </div>
+          )}
         </>
+      )}
+    </div>
+  )
+}
+
+function DebriefRow({ debrief }: { debrief: Debrief }) {
+  const [open, setOpen] = useState(false)
+  if (!debrief.text) return null
+  return (
+    <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          color: 'rgba(129,140,248,0.95)', textAlign: 'left',
+        }}
+      >
+        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: 700, letterSpacing: '0.04em' }}>
+          {open ? '▾' : '▸'} {debrief.date}
+        </span>
+      </button>
+      {open && (
+        <div style={{
+          fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.55,
+          marginTop: '8px', whiteSpace: 'pre-wrap',
+        }}>
+          {debrief.text}
+        </div>
       )}
     </div>
   )

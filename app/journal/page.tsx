@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment } from 'react'
 
 interface Trade {
   id: string
@@ -15,6 +15,8 @@ interface Trade {
   tradeFees?: number
   status: string
   notes?: string
+  aiReasoning?: string | null
+  source?: string
 }
 
 export default function JournalPage() {
@@ -186,33 +188,54 @@ export default function JournalPage() {
                     const gross = t.grossPnl ?? t.resultDollars ?? 0
                     const fees = t.tradeFees ?? 0
                     const net = t.resultDollars ?? 0
+                    const hasReasoning = !!t.aiReasoning
                     return (
-                      <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '12px 10px', color: 'var(--text-secondary)' }}>{t.time ?? '—'}</td>
-                        <td style={{ padding: '12px 10px', fontWeight: '600' }}>{t.market}</td>
-                        <td style={{ padding: '12px 10px' }}>
-                          <span style={{ color: t.direction === 'LONG' ? 'var(--green)' : 'var(--red)', fontWeight: '700' }}>
-                            {t.direction === 'LONG' ? '↑' : '↓'} {t.direction}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 10px', textAlign: 'center' }}>{t.contracts}</td>
-                        <td style={{ padding: '12px 10px' }}>{t.entry}</td>
-                        <td style={{ padding: '12px 10px' }}>{t.exit ?? '—'}</td>
-                        <td style={{ padding: '12px 10px', color: gross >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: '600' }}>
-                          {gross >= 0 ? '+' : ''}${gross.toFixed(0)}
-                        </td>
-                        <td style={{ padding: '12px 10px', color: 'var(--yellow)' }}>
-                          -${Math.abs(fees).toFixed(2)}
-                        </td>
-                        <td style={{ padding: '12px 10px', color: net >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: '700' }}>
-                          {net >= 0 ? '+' : ''}${net.toFixed(0)}
-                        </td>
-                        <td style={{ padding: '12px 10px' }}>
-                          <span style={{ color: t.status === 'WIN' ? 'var(--green)' : t.status === 'LOSS' ? 'var(--red)' : 'var(--yellow)', fontWeight: '700' }}>
-                            {t.status}
-                          </span>
-                        </td>
-                      </tr>
+                      <Fragment key={t.id}>
+                        <tr style={{ borderBottom: hasReasoning ? 'none' : '1px solid var(--border)' }}>
+                          <td style={{ padding: '12px 10px', color: 'var(--text-secondary)' }}>{t.time ?? '—'}</td>
+                          <td style={{ padding: '12px 10px', fontWeight: '600' }}>
+                            {t.market}
+                            {t.source === 'paper' && (
+                              <span style={{ marginLeft: '6px', fontSize: '9px', color: 'rgba(129,140,248,0.85)', letterSpacing: '0.06em', fontWeight: 700 }}>PAPER</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 10px' }}>
+                            <span style={{ color: t.direction === 'LONG' ? 'var(--green)' : 'var(--red)', fontWeight: '700' }}>
+                              {t.direction === 'LONG' ? '↑' : '↓'} {t.direction}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center' }}>{t.contracts}</td>
+                          <td style={{ padding: '12px 10px' }}>{t.entry}</td>
+                          <td style={{ padding: '12px 10px' }}>{t.exit ?? '—'}</td>
+                          <td style={{ padding: '12px 10px', color: gross >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: '600' }}>
+                            {gross >= 0 ? '+' : ''}${gross.toFixed(0)}
+                          </td>
+                          <td style={{ padding: '12px 10px', color: 'var(--yellow)' }}>
+                            -${Math.abs(fees).toFixed(2)}
+                          </td>
+                          <td style={{ padding: '12px 10px', color: net >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: '700' }}>
+                            {net >= 0 ? '+' : ''}${net.toFixed(0)}
+                          </td>
+                          <td style={{ padding: '12px 10px' }}>
+                            <span style={{ color: t.status === 'WIN' ? 'var(--green)' : t.status === 'LOSS' ? 'var(--red)' : 'var(--yellow)', fontWeight: '700' }}>
+                              {t.status}
+                            </span>
+                          </td>
+                        </tr>
+                        {hasReasoning && (
+                          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td colSpan={10} style={{ padding: '0 10px 12px 10px' }}>
+                              <div style={{
+                                fontSize: '11px', color: 'rgba(129,140,248,0.75)', lineHeight: 1.45,
+                                fontFamily: 'IBM Plex Mono, monospace',
+                              }}>
+                                <span style={{ color: 'rgba(129,140,248,0.95)', fontWeight: 700, marginRight: '6px' }}>AI</span>
+                                {t.aiReasoning}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </tbody>
