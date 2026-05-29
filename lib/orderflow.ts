@@ -206,6 +206,20 @@ export function assessBreakout(
   }
 }
 
+export interface OrderflowLive {
+  refPrice: number
+  long: OrderflowAssessment
+  short: OrderflowAssessment
+}
+
+// Two-sided read at the current price — "if price broke here right now, what
+// would the engine see?" Lets the cockpit show live flow even with no breakout.
+export function assessLive(): OrderflowLive | null {
+  const ref = currentRef()
+  if (!ref || ref <= 0) return null
+  return { refPrice: ref, long: assessBreakout('LONG', ref), short: assessBreakout('SHORT', ref) }
+}
+
 export interface OrderflowSnapshot {
   available: boolean
   contractId: string
@@ -213,9 +227,13 @@ export interface OrderflowSnapshot {
   shortDelta: number
   bookLevels: number
   lastTradeAgoMs: number | null
+  bestBid: number | null
+  bestAsk: number | null
+  live: OrderflowLive | null
 }
 
 export function getOrderflowSnapshot(): OrderflowSnapshot {
+  const q = _activeContract ? getLastQuote(_activeContract) : null
   return {
     available: !isStale(),
     contractId: _activeContract,
@@ -223,6 +241,9 @@ export function getOrderflowSnapshot(): OrderflowSnapshot {
     shortDelta: getShortDelta(),
     bookLevels: _book.size,
     lastTradeAgoMs: _lastTradeAt ? Date.now() - _lastTradeAt : null,
+    bestBid: q && q.bid > 0 ? q.bid : null,
+    bestAsk: q && q.ask > 0 ? q.ask : null,
+    live: assessLive(),
   }
 }
 

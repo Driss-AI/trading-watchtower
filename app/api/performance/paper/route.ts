@@ -122,8 +122,17 @@ export async function GET() {
       resultDollars: t.resultDollars,
       resultR: t.resultR,
       status: t.status,
-      aiReasoning: t.aiReasoning ? t.aiReasoning.slice(0, 120) : null,
+      aiReasoning: t.aiReasoning ? t.aiReasoning.slice(0, 400) : null,
     }))
+
+    // Recent AI session debriefs (newest first)
+    const debriefRows = await prisma.session.findMany({
+      where: { debrief: { not: null } },
+      orderBy: { date: 'desc' },
+      take: 10,
+      select: { date: true, debrief: true },
+    })
+    const debriefs = debriefRows.map((s) => ({ date: s.date, text: s.debrief }))
 
     return NextResponse.json({
       stats: {
@@ -149,6 +158,7 @@ export async function GET() {
         allCriteriaMet: criteriaPassedCount === criteria.length,
         dailyBreakdown,
         recentTrades,
+        debriefs,
         byDirection: {
           LONG: {
             trades: trades.filter((t) => t.direction === 'LONG').length,

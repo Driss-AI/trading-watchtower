@@ -113,6 +113,9 @@ export interface PaperEngineState {
   config: EngineConfig
   ai: AIState
   orderflow: OrderflowSnapshot | null
+  lastOrderflow: OrderflowAssessment | null
+  orderflowVetoes: { count: number; reasons: string[] }
+  debrief: string | null
 }
 
 // ─── DB WRITE QUEUE (resilience for Postgres outages) ───────────────────────
@@ -199,6 +202,7 @@ let _ofVetoActive = false // tracks order-flow veto so we notify once, not every
 let _lastOrderflow: OrderflowAssessment | null = null // assessment at the last evaluated breakout
 let _ofVetoCount = 0 // distinct order-flow veto episodes today (for the debrief)
 let _ofVetoReasons: string[] = []
+let _lastDebrief: string | null = null // today's AI debrief once the session closes
 let _briefingCache: Awaited<ReturnType<typeof fetchMarketBriefing>> | null = null
 
 // Settings cache
@@ -421,6 +425,7 @@ function checkDayReset(): void {
     _lastOrderflow = null
     _ofVetoCount = 0
     _ofVetoReasons = []
+    _lastDebrief = null
     resetOrderflowDay()
   }
 }
@@ -522,6 +527,18 @@ async function sendSessionDebrief(): Promise<void> {
   console.log(`[PaperEngine] Sending session debrief (${input.trades.length} trades, ${input.vetoCount} vetoes)`)
   const debrief = await summarizeSession(input)
   notify(debrief)
+
+  // Persist a tag-stripped copy so the dashboard can show past debriefs.
+  const today = getToday()
+  const clean = debrief.replace(/<\/?b>/g, '')
+  _lastDebrief = clean
+  await safeDbWrite(`Persist debrief ${today}`, async () => {
+    await prisma.session.upsert({
+      where: { date: today },
+      update: { debrief: clean },
+      create: { date: today, market: 'MNQ', debrief: clean },
+    })
+  })
 }
 
 // ─── ENTRY LOGIC ─────────────────────────────────────────────────────────────
@@ -1060,6 +1077,9 @@ export function getEngineState(): PaperEngineState {
         analysisInProgress: _aiAnalysisInProgress,
       },
       orderflow: getOrderflowSnapshot(),
+      lastOrderflow: _lastOrderflow,
+      orderflowVetoes: { count: _ofVetoCount, reasons: _ofVetoReasons },
+      debrief: _lastDebrief,
     }
     syncStateToGlobal(state)
     return state
@@ -1087,5 +1107,8 @@ export function getEngineState(): PaperEngineState {
     config: { ..._config },
     ai: { preSession: null, orAssessment: null, lastBreakout: null, analysisInProgress: false },
     orderflow: null,
+    lastOrderflow: null,
+    orderflowVetoes: { count: 0, reasons: [] },
+    debrief: null,
   }
 }

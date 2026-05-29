@@ -70,6 +70,9 @@ model Session {
   tradesCount     Int      @default(0)
   losesCount      Int      @default(0)
 
+  // AI-written end-of-session debrief (Telegram + dashboard)
+  debrief         String?
+
   trades          Trade[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
