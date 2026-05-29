@@ -23,9 +23,11 @@ import {
   analyzePreSession,
   analyzeOpeningRange,
   analyzeBreakout,
+  summarizeSession,
   type PreSessionDecision,
   type ORAssessment,
   type BreakoutDecision,
+  type SessionDebriefInput,
 } from './trading-ai'
 import { fetchMarketBriefing, fetchMacroSentiment } from './market-data'
 import { getSessionImpact } from './calendar-intel'
@@ -195,6 +197,8 @@ let _lastBreakout: BreakoutDecision | null = null
 let _aiAnalysisInProgress = false
 let _ofVetoActive = false // tracks order-flow veto so we notify once, not every tick
 let _lastOrderflow: OrderflowAssessment | null = null // assessment at the last evaluated breakout
+let _ofVetoCount = 0 // distinct order-flow veto episodes today (for the debrief)
+let _ofVetoReasons: string[] = []
 let _briefingCache: Awaited<ReturnType<typeof fetchMarketBriefing>> | null = null
 
 // Settings cache
@@ -415,6 +419,8 @@ function checkDayReset(): void {
     _sessionSummarySent = false
     _ofVetoActive = false
     _lastOrderflow = null
+    _ofVetoCount = 0
+    _ofVetoReasons = []
     resetOrderflowDay()
   }
 }
@@ -490,17 +496,32 @@ function handleClosed(price: number): void {
     closePosition(price, 'session_end')
   }
 
-  if (!_sessionSummarySent && _tradesCount > 0) {
+  // Send an AI-written debrief once per session — but only if a real session
+  // ran (OR locked or trades taken), so a late engine boot doesn't post a blank.
+  if (!_sessionSummarySent && (_orLocked || _tradesCount > 0)) {
     _sessionSummarySent = true
-    const winRate = _tradesCount > 0 ? Math.round((_winsCount / _tradesCount) * 100) : 0
-    notify(
-      `📋 <b>SESSION SUMMARY</b>\n` +
-      `Trades: ${_tradesCount} | Wins: ${_winsCount} | Losses: ${_lossesCount}\n` +
-      `Win Rate: ${winRate}%\n` +
-      `P&L: $${_dailyPnl >= 0 ? '+' : ''}${_dailyPnl.toFixed(2)}\n` +
-      (_orHigh && _orLow ? `OR: ${_orHigh} / ${_orLow} (${(_orHigh - _orLow).toFixed(2)} pts)` : '')
-    )
+    sendSessionDebrief().catch((err) => console.error('[PaperEngine] Session debrief error:', err))
   }
+}
+
+async function sendSessionDebrief(): Promise<void> {
+  const input: SessionDebriefInput = {
+    date: getToday(),
+    orHigh: _orHigh,
+    orLow: _orLow,
+    orSize: _orHigh !== null && _orLow !== null ? parseFloat((_orHigh - _orLow).toFixed(2)) : null,
+    preSession: _preSession,
+    orAssessment: _orAssessment,
+    trades: _todayTrades,
+    dailyPnl: parseFloat(_dailyPnl.toFixed(2)),
+    winsCount: _winsCount,
+    lossesCount: _lossesCount,
+    vetoCount: _ofVetoCount,
+    vetoReasons: _ofVetoReasons,
+  }
+  console.log(`[PaperEngine] Sending session debrief (${input.trades.length} trades, ${input.vetoCount} vetoes)`)
+  const debrief = await summarizeSession(input)
+  notify(debrief)
 }
 
 // ─── ENTRY LOGIC ─────────────────────────────────────────────────────────────
@@ -591,6 +612,10 @@ function checkEntry(price: number): void {
   if (_config.enableOrderflowVeto && ofAssessment.verdict === 'veto') {
     if (!_ofVetoActive) {
       _ofVetoActive = true
+      _ofVetoCount++
+      if (_ofVetoReasons.length < 10) {
+        _ofVetoReasons.push(`${direction} @ ${ofRef.toFixed(2)}: ${ofAssessment.reasons.join('; ')}`)
+      }
       console.log(`[PaperEngine] Order-flow VETO: ${direction} — ${ofAssessment.reasons.join('; ')}`)
       notify(`⛔ <b>ORDER-FLOW VETO</b>\n${direction} breakout blocked\n${ofAssessment.reasons.join('\n')}`)
     }

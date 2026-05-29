@@ -499,3 +499,91 @@ function buildPreSessionPrompt(
 
   return sections.join('\n')
 }
+
+// ─── SESSION DEBRIEF ───────────────────────────────────────────────────────
+// Post-close written assessment of the day — what we traded, what we vetoed and
+// why, and how order flow shaped it. Plain text for Telegram.
+
+export interface SessionDebriefTrade {
+  direction: 'LONG' | 'SHORT'
+  entryPrice: number
+  exitPrice: number
+  contracts: number
+  resultPts: number
+  resultDollars: number
+  status: 'WIN' | 'LOSS' | 'BE'
+  entryTime: string
+  exitTime: string
+}
+
+export interface SessionDebriefInput {
+  date: string
+  orHigh: number | null
+  orLow: number | null
+  orSize: number | null
+  preSession: PreSessionDecision | null
+  orAssessment: ORAssessment | null
+  trades: SessionDebriefTrade[]
+  dailyPnl: number
+  winsCount: number
+  lossesCount: number
+  vetoCount: number
+  vetoReasons: string[]
+}
+
+function mechanicalDebrief(i: SessionDebriefInput): string {
+  const wr = i.trades.length ? Math.round((i.winsCount / i.trades.length) * 100) : 0
+  const lines = [
+    `📋 <b>SESSION DEBRIEF</b> — ${i.date}`,
+    i.orHigh && i.orLow ? `OR: ${i.orHigh} / ${i.orLow} (${i.orSize?.toFixed(0)} pts)` : 'OR: not captured',
+    `Trades: ${i.trades.length} · W/L: ${i.winsCount}/${i.lossesCount} (${wr}%) · P&L: $${i.dailyPnl >= 0 ? '+' : ''}${i.dailyPnl.toFixed(2)}`,
+  ]
+  if (i.vetoCount > 0) lines.push(`Order-flow vetoes: ${i.vetoCount}`)
+  return lines.join('\n')
+}
+
+export async function summarizeSession(input: SessionDebriefInput): Promise<string> {
+  const prompt = buildDebriefPrompt(input)
+  try {
+    const response = await getClient().messages.create({
+      model: FAST_MODEL,
+      max_tokens: 400,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    const block = response.content.find((b) => b.type === 'text')
+    if (block && block.type === 'text' && block.text.trim()) {
+      return `🧠 <b>SESSION DEBRIEF</b> — ${input.date}\n\n${block.text.trim()}`
+    }
+  } catch (err) {
+    console.error('[TradingAI] Session debrief failed:', err)
+  }
+  return mechanicalDebrief(input)
+}
+
+function buildDebriefPrompt(i: SessionDebriefInput): string {
+  const sec: string[] = []
+  sec.push(
+    `Write a concise end-of-session debrief (4-6 sentences) on how today's ORB paper session went. ` +
+    `Be specific and honest — credit good discipline, call out mistakes. Plain text, no markdown headers or bullet symbols.`,
+  )
+  sec.push(`\nDATE: ${i.date}`)
+  if (i.orHigh && i.orLow) sec.push(`OPENING RANGE: ${i.orHigh} / ${i.orLow} (${i.orSize?.toFixed(0)} pts)`)
+  if (i.preSession) sec.push(`PRE-SESSION: trade=${i.preSession.shouldTrade}, bias=${i.preSession.bias}, conf=${i.preSession.confidence}% — ${i.preSession.reasoning}`)
+  if (i.orAssessment) sec.push(`OR ASSESSMENT: ${i.orAssessment.quality}, prefers ${i.orAssessment.preferredDirection} — ${i.orAssessment.reasoning}`)
+
+  sec.push(`\nTRADES (${i.trades.length}):`)
+  if (i.trades.length === 0) sec.push(`- none taken`)
+  for (const t of i.trades) {
+    sec.push(`- ${t.entryTime} ${t.direction} ${t.contracts} @ ${t.entryPrice} → ${t.exitPrice} = ${t.status} ${t.resultPts >= 0 ? '+' : ''}${t.resultPts}pts ($${t.resultDollars >= 0 ? '+' : ''}${t.resultDollars.toFixed(0)})`)
+  }
+  sec.push(`\nDAILY P&L: $${i.dailyPnl >= 0 ? '+' : ''}${i.dailyPnl.toFixed(2)} | W/L: ${i.winsCount}/${i.lossesCount}`)
+
+  if (i.vetoCount > 0) {
+    sec.push(`\nORDER-FLOW VETOES (${i.vetoCount}) — breakouts skipped because the tape/DOM didn't back them:`)
+    for (const r of i.vetoReasons.slice(0, 5)) sec.push(`- ${r}`)
+  }
+
+  sec.push(`\nAssess: did we follow the plan? Was sitting out / vetoing the right call given the outcome? One thing to watch next session. Keep it tight and useful.`)
+  return sec.join('\n')
+}
