@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Dashboard', icon: '⬛' },
+  { href: '/', label: 'Cockpit', icon: '⬛' },
   { href: '/paper', label: 'Paper', icon: '◇' },
   { href: '/session', label: 'Session', icon: '◈' },
   { href: '/risk', label: 'Risk Calc', icon: '⚡' },
