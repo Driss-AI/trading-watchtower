@@ -5,21 +5,28 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('Seeding database...')
 
-  // Create default settings (id=1 is the singleton)
+  // Create default settings (id=1 is the singleton).
+  // On re-seed, re-assert the fixed 50K-combine rules + the order-execution
+  // safety lock so existing rows can never drift. Secrets (API keys, telegram
+  // tokens) and user-tunable toggles are intentionally left out of `update` so
+  // they are preserved across deploys.
+  const combineRules = {
+    accountSize: 50000,
+    dailyLossLimit: 1000,
+    trailingDrawdown: 2000,
+    profitTarget: 3000,
+    enableOrderExecution: false,
+  }
   await prisma.settings.upsert({
     where: { id: 1 },
-    update: {},
+    update: combineRules,
     create: {
       id: 1,
-      accountSize: 50000,
-      dailyLossLimit: 1000,
-      trailingDrawdown: 2000,
-      profitTarget: 3000,
+      ...combineRules,
       maxTradesPerDay: 2,
       maxLosingTradesPerDay: 2,
       mnqEnabled: true,
       nqEnabled: false,
-      enableOrderExecution: false,
       topstepxUsername: "",
     },
   })

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const settings = await prisma.settings.findFirst()
     const maxTradesPerDay = settings?.maxTradesPerDay ?? 2
     const maxLosingTradesPerDay = settings?.maxLosingTradesPerDay ?? 2
-    const dailyLossLimit = settings?.dailyLossLimit ?? 2000
+    const dailyLossLimit = settings?.dailyLossLimit ?? 1000
 
     // Count today's trades if session exists
     const existingSession = await prisma.session.findFirst({ where: { date } })

@@ -41,7 +41,7 @@ const MESSAGES: Record<string, string> = {
     'OR is complete — breakout alerts active',
     '⏱ 10:00 → 11:00 AM ET  |  6:00 → 7:00 PM Dubai',
     '',
-    'Max 2 trades · $2K daily limit · 2:1 R:R minimum',
+    'Max 2 trades · $1K daily limit · 2:1 R:R minimum',
   ].join('\n'),
 
   close: [

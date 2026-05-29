@@ -212,17 +212,6 @@ function getNYTime(): { h: number; m: number; totalMin: number } {
   return { h, m, totalMin: h * 60 + m }
 }
 
-function getTodayDate(): string {
-  return new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
-    .split(',')[0]
-    .split('/')
-    .map((p, i) => i === 2 ? p : p.padStart(2, '0'))
-    .reverse()
-    .join('-')
-    // Format: MM/DD/YYYY → YYYY-MM-DD
-    .replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2-$3')
-}
-
 function formatNYTime(): string {
   const { h, m } = getNYTime()
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ET`
