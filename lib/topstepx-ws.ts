@@ -135,6 +135,22 @@ function pushSample(buf: OFSample[], contractId: string, raw: unknown): void {
   if (buf.length > OF_SAMPLE_CAP) buf.shift()
 }
 
+// Dedicated sinks for trade/depth so consumers (lib/orderflow.ts) can aggregate
+// without routing high-volume tape through the general broadcast() fan-out.
+type OFSink = (contractId: string, raw: unknown) => void
+const _tradeSinks = new Set<OFSink>()
+const _depthSinks = new Set<OFSink>()
+
+export function registerTradeSink(fn: OFSink): () => void {
+  _tradeSinks.add(fn)
+  return () => { _tradeSinks.delete(fn) }
+}
+
+export function registerDepthSink(fn: OFSink): () => void {
+  _depthSinks.add(fn)
+  return () => { _depthSinks.delete(fn) }
+}
+
 export function getOrderflowSamples() {
   return {
     tradeCount: _tradeCount,
@@ -393,6 +409,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
   hub.on('GatewayTrade', (contractId: string, raw: unknown) => {
     _tradeCount++
     pushSample(_tradeSamples, contractId, raw)
+    _tradeSinks.forEach((fn) => { try { fn(contractId, raw) } catch {} })
     if (_tradeLogCount < 3) {
       _tradeLogCount++
       console.log(`[TopstepX WS] GatewayTrade #${_tradeLogCount}: ${contractId}`, JSON.stringify(raw))
@@ -403,6 +420,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
   hub.on('GatewayDepth', (contractId: string, raw: unknown) => {
     _depthCount++
     pushSample(_depthSamples, contractId, raw)
+    _depthSinks.forEach((fn) => { try { fn(contractId, raw) } catch {} })
     if (_depthLogCount < 3) {
       _depthLogCount++
       console.log(`[TopstepX WS] GatewayDepth #${_depthLogCount}: ${contractId}`, JSON.stringify(raw))

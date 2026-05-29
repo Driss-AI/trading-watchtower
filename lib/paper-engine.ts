@@ -29,6 +29,14 @@ import {
 } from './trading-ai'
 import { fetchMarketBriefing, fetchMacroSentiment } from './market-data'
 import { getSessionImpact } from './calendar-intel'
+import {
+  startOrderflow,
+  resetOrderflowDay,
+  assessBreakout,
+  getOrderflowSnapshot,
+  type OrderflowAssessment,
+  type OrderflowSnapshot,
+} from './orderflow'
 import { sendTelegramAlert } from './telegram'
 
 // ─── TELEGRAM HELPER ────────────────────────────────────────────────────────
@@ -75,6 +83,7 @@ interface EngineConfig {
   maxContracts: number
   sessionEndMinute: number // NY minutes (e.g., 690 = 11:30 AM)
   enableBreakevenStop: boolean
+  enableOrderflowVeto: boolean // hard-skip breakouts on strong delta divergence / absorbing wall
 }
 
 export interface AIState {
@@ -101,6 +110,7 @@ export interface PaperEngineState {
   todayTrades: ClosedPaperTrade[]
   config: EngineConfig
   ai: AIState
+  orderflow: OrderflowSnapshot | null
 }
 
 // ─── DB WRITE QUEUE (resilience for Postgres outages) ───────────────────────
@@ -175,6 +185,7 @@ let _config: EngineConfig = {
   maxContracts: 5,
   sessionEndMinute: 690, // 11:30 AM ET
   enableBreakevenStop: false,
+  enableOrderflowVeto: true,
 }
 
 // AI state
@@ -182,6 +193,8 @@ let _preSession: PreSessionDecision | null = null
 let _orAssessment: ORAssessment | null = null
 let _lastBreakout: BreakoutDecision | null = null
 let _aiAnalysisInProgress = false
+let _ofVetoActive = false // tracks order-flow veto so we notify once, not every tick
+let _lastOrderflow: OrderflowAssessment | null = null // assessment at the last evaluated breakout
 let _briefingCache: Awaited<ReturnType<typeof fetchMarketBriefing>> | null = null
 
 // Settings cache
@@ -400,6 +413,9 @@ function checkDayReset(): void {
     _lastBreakout = null
     _briefingCache = null
     _sessionSummarySent = false
+    _ofVetoActive = false
+    _lastOrderflow = null
+    resetOrderflowDay()
   }
 }
 
@@ -567,9 +583,24 @@ function checkEntry(price: number): void {
 
   const contracts = Math.min(_config.maxContracts, Math.max(1, riskCalc.maxContractsAllowed))
 
+  // Order-flow gate: assess the breakout against live tape + DOM. Fail-open.
+  const ofRef = _lastPrice > 0 ? _lastPrice : entryPrice
+  const ofAssessment = assessBreakout(direction, ofRef)
+  _lastOrderflow = ofAssessment
+
+  if (_config.enableOrderflowVeto && ofAssessment.verdict === 'veto') {
+    if (!_ofVetoActive) {
+      _ofVetoActive = true
+      console.log(`[PaperEngine] Order-flow VETO: ${direction} — ${ofAssessment.reasons.join('; ')}`)
+      notify(`⛔ <b>ORDER-FLOW VETO</b>\n${direction} breakout blocked\n${ofAssessment.reasons.join('\n')}`)
+    }
+    return
+  }
+  _ofVetoActive = false
+
   // Consult AI for final breakout confirmation (async)
   _entryLock = true
-  consultAIForBreakout(direction, entryPrice, stopPrice, targetPrice, contracts)
+  consultAIForBreakout(direction, entryPrice, stopPrice, targetPrice, contracts, ofAssessment)
     .finally(() => { _entryLock = false })
 }
 
@@ -579,6 +610,7 @@ async function consultAIForBreakout(
   stopPrice: number,
   targetPrice: number,
   mechanicalContracts: number,
+  orderflow: OrderflowAssessment | null = null,
 ): Promise<void> {
   if (!_orHigh || !_orLow) return
 
@@ -604,6 +636,7 @@ async function consultAIForBreakout(
         lossesCount: _lossesCount,
         trailingDrawdownRemaining: _settings ? _settings.dailyLossLimit * 2 : 2000,
       },
+      orderflow,
     )
     _lastBreakout = decision
     _aiAnalysisInProgress = false
@@ -715,6 +748,7 @@ async function openPosition(
   if (_preSession) aiParts.push(`Pre-session: ${_preSession.reasoning}`)
   if (_orAssessment) aiParts.push(`OR: ${_orAssessment.quality} — ${_orAssessment.reasoning}`)
   if (_lastBreakout) aiParts.push(`Breakout: ${_lastBreakout.reasoning}`)
+  if (_lastOrderflow?.available) aiParts.push(`Order flow: ${_lastOrderflow.verdict} — ${_lastOrderflow.reasons.join('; ')}`)
   const aiReasoning = aiParts.length > 0 ? aiParts.join(' | ') : null
 
   // Optimistic in-memory tracking — DB write may be queued if Postgres is down
@@ -860,7 +894,8 @@ export async function startEngine(): Promise<void> {
     _contractId = await getActiveMNQContractId()
     await connectMarketHub()
     await subscribeToQuote(_contractId)
-    console.log(`[PaperEngine] Subscribed to ${_contractId}`)
+    await startOrderflow(_contractId)
+    console.log(`[PaperEngine] Subscribed to ${_contractId} (quotes + order flow)`)
   } catch (err) {
     console.error('[PaperEngine] Failed to connect to market stream:', err)
     notify(`🔴 <b>ENGINE START FAILED</b>\nCould not connect to MNQ stream\n${String(err)}`)
@@ -999,6 +1034,7 @@ export function getEngineState(): PaperEngineState {
         lastBreakout: _lastBreakout,
         analysisInProgress: _aiAnalysisInProgress,
       },
+      orderflow: getOrderflowSnapshot(),
     }
     syncStateToGlobal(state)
     return state
@@ -1025,5 +1061,6 @@ export function getEngineState(): PaperEngineState {
     todayTrades: [],
     config: { ..._config },
     ai: { preSession: null, orAssessment: null, lastBreakout: null, analysisInProgress: false },
+    orderflow: null,
   }
 }

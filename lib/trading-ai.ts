@@ -9,6 +9,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { MarketBriefing, MacroSentiment } from './market-data'
 import type { SessionImpact } from './calendar-intel'
+import type { OrderflowAssessment } from './orderflow'
 
 let _client: Anthropic | null = null
 
@@ -250,6 +251,7 @@ export async function analyzeBreakout(
     lossesCount: number
     trailingDrawdownRemaining: number
   },
+  orderflow: OrderflowAssessment | null = null,
 ): Promise<BreakoutDecision> {
   const riskPts = Math.abs(entryPrice - stopPrice)
   const rewardPts = Math.abs(targetPrice - entryPrice)
@@ -293,6 +295,12 @@ CONTEXT:
 ${accountState.lossesCount > 0 ? '- WARNING: Already took a loss today — max 2 contracts after a loss' : ''}
 ${accountState.trailingDrawdownRemaining < 800 ? '- DANGER: Drawdown within $800 — max 2 contracts' : ''}
 ${accountState.trailingDrawdownRemaining < 400 ? '- CRITICAL: Drawdown within $400 — max 1 contract only' : ''}
+${orderflow && orderflow.available
+  ? `\nORDER FLOW (live tape + DOM):
+- Cumulative delta: ${orderflow.cumDelta} | recent-window delta: ${orderflow.shortDelta} (${orderflow.deltaConfirms ? 'confirms' : 'DIVERGES from'} the ${direction})
+- Delta divergence: ${orderflow.divergence} | resting wall ahead: ${orderflow.wallRisk} (${orderflow.resistanceVol} ahead vs ${orderflow.supportVol} behind)
+- Order-flow read: ${orderflow.verdict.toUpperCase()} — ${orderflow.reasons.join('; ')}${orderflow.verdict === 'caution' ? '\n  ⚠️ Flow is cautious: require strong conviction or size down.' : ''}`
+  : '\nORDER FLOW: unavailable/stale — decide on price action + context only.'}
 
 Enter or skip? If entering, choose contracts (1-${hardCap}) based on confidence and risk.`
 
