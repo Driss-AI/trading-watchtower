@@ -274,7 +274,7 @@ export default function ORBAlerts() {
       const ny = getNYTime()
       if      (ny.totalMin < 570) setPhase('pre')
       else if (ny.totalMin < 600) setPhase('forming')
-      else if (ny.totalMin < 660) setPhase('monitoring')
+      else if (ny.totalMin < 690) setPhase('monitoring') // 11:30 ET — matches paper-engine sessionEndMinute
       else                         setPhase('closed')
     }
     updatePhase()
@@ -427,7 +427,7 @@ export default function ORBAlerts() {
     if (!livePrice || !orLocked || !orHigh || !orLow) return
     if (breakoutFiredRef.current) return
     if (phase !== 'monitoring') return
-    const BUFFER = 2
+    const BUFFER = 3 // matches paper-engine bufferPoints + topstepx OR buffer
     const dir: BreakoutDirection =
       livePrice > orHigh + BUFFER ? 'LONG' :
       livePrice < orLow  - BUFFER ? 'SHORT' :
@@ -643,7 +643,7 @@ export default function ORBAlerts() {
         <CandleCard dir={breakout} />
         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: `1px solid ${border}`, display: 'flex', gap: '12px', alignItems: 'center' }}>
           <a href="/risk" style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '600', color, textDecoration: 'none', padding: '8px 16px', border: `1px solid ${border}`, borderRadius: '6px' }}>⚡ Open Risk Calculator</a>
-          <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>Entry = live price · Stop = {isLong ? 'OR Low' : 'OR High'} · Target = 2:1</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>Entry = live price · Stop = {isLong ? 'OR Low' : 'OR High'} · Target = 1.5× OR</span>
         </div>
       </div>
     )
