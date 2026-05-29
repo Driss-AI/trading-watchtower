@@ -10,6 +10,10 @@ import { getTopstepXToken, getActiveMNQContractId, getActiveNQContractId } from 
 
 export const dynamic = 'force-dynamic'
 
+// Use the same REST base as the rest of the app (api.topstepx.com), overridable
+// via env — avoids pointing at a different host than lib/topstepx.ts.
+const BASE_URL = process.env.TOPSTEPX_BASE_URL ?? 'https://api.topstepx.com'
+
 // Returns an ISO string for a given hour:minute in America/New_York, today.
 function etToday(hour: number, minute: number): string {
   const now   = new Date()
@@ -79,7 +83,7 @@ export async function GET(req: NextRequest) {
       : await getActiveMNQContractId()
 
     // live: false → uses sim/combine data subscription (correct for TopStep eval accounts)
-    const res = await fetch('https://gateway.topstepx.com/api/History/retrieveBars', {
+    const res = await fetch(`${BASE_URL}/api/History/retrieveBars`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
