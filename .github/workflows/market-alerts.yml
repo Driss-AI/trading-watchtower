@@ -1,12 +1,9 @@
 name: Market Alerts
 
 on:
-  schedule:
-    - cron: '15 13 * * 1-5'
-    - cron: '25 13 * * 1-5'
-    - cron: '30 13 * * 1-5'
-    - cron: '0 14 * * 1-5'
-    - cron: '0 15 * * 1-5'
+  # Scheduled cron triggers removed — market alerts are now sent by the in-app
+  # DST-aware scheduler (lib/market-alerts.ts). Leaving these on would double-fire
+  # every alert. workflow_dispatch is kept so the endpoint can still be tested.
   workflow_dispatch:
     inputs:
       type:
