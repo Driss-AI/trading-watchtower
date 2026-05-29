@@ -114,6 +114,45 @@ const _subscribedContracts = new Set<string>()
 // Last-known quote per contract (so a new SSE client gets an immediate value)
 const _lastQuote = new Map<string, WSQuote>()
 
+// ─── ORDER-FLOW PROBE STATE ────────────────────────────────────────────────────
+// Trade-tape (GatewayTrade) and DOM (GatewayDepth) subscriptions + a small ring
+// buffer of recent raw payloads. Lets us confirm these streams flow on the
+// combine/sim feed before building delta / liquidity-heatmap aggregation on them.
+const _desiredTrades    = new Set<string>()
+const _desiredDepth     = new Set<string>()
+const _subscribedTrades = new Set<string>()
+const _subscribedDepth  = new Set<string>()
+
+interface OFSample { contractId: string; raw: unknown; at: string }
+const _tradeSamples: OFSample[] = []
+const _depthSamples: OFSample[] = []
+const OF_SAMPLE_CAP = 40
+let _tradeCount = 0
+let _depthCount = 0
+
+function pushSample(buf: OFSample[], contractId: string, raw: unknown): void {
+  buf.push({ contractId, raw, at: new Date().toISOString() })
+  if (buf.length > OF_SAMPLE_CAP) buf.shift()
+}
+
+export function getOrderflowSamples() {
+  return {
+    tradeCount: _tradeCount,
+    depthCount: _depthCount,
+    subscribedTrades: Array.from(_subscribedTrades),
+    subscribedDepth: Array.from(_subscribedDepth),
+    tradeSamples: [..._tradeSamples],
+    depthSamples: [..._depthSamples],
+  }
+}
+
+export function resetOrderflowSamples(): void {
+  _tradeSamples.length = 0
+  _depthSamples.length = 0
+  _tradeCount = 0
+  _depthCount = 0
+}
+
 // Promise-based locks — prevent concurrent connect() calls from racing
 let _userConnecting:   Promise<void> | null = null
 let _marketConnecting: Promise<void> | null = null
@@ -223,6 +262,7 @@ async function handleGatewayLogout(hubName: string) {
         console.error(`[TopstepX WS] Failed to re-subscribe to ${contractId}:`, err)
       }
     }
+    await resubscribeTradesDepth(_marketHub)
     broadcast({ type: 'connected', hub: 'market' })
 
     // Reconnect user hub (same token, same session)
@@ -349,13 +389,24 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
     }
   })
 
-  hub.on('GatewayTrade', (_contractId: string, _raw: any) => {
-    // Not currently surfaced to consumers — would need a separate event type.
-    // Left as a no-op so we don't drop the subscription if invoked.
+  let _tradeLogCount = 0
+  hub.on('GatewayTrade', (contractId: string, raw: unknown) => {
+    _tradeCount++
+    pushSample(_tradeSamples, contractId, raw)
+    if (_tradeLogCount < 3) {
+      _tradeLogCount++
+      console.log(`[TopstepX WS] GatewayTrade #${_tradeLogCount}: ${contractId}`, JSON.stringify(raw))
+    }
   })
 
-  hub.on('GatewayDepth', (_contractId: string, _raw: any) => {
-    // Same — DOM events not currently surfaced.
+  let _depthLogCount = 0
+  hub.on('GatewayDepth', (contractId: string, raw: unknown) => {
+    _depthCount++
+    pushSample(_depthSamples, contractId, raw)
+    if (_depthLogCount < 3) {
+      _depthLogCount++
+      console.log(`[TopstepX WS] GatewayDepth #${_depthLogCount}: ${contractId}`, JSON.stringify(raw))
+    }
   })
 
   hub.on('GatewayLogout', () => handleGatewayLogout('market'))
@@ -370,6 +421,7 @@ async function buildMarketHub(): Promise<signalR.HubConnection> {
         console.log(`[TopstepX WS] Re-subscribed after auto-reconnect: ${contractId}`)
       } catch {}
     }
+    await resubscribeTradesDepth(hub)
     broadcast({ type: 'connected', hub: 'market' })
   })
   hub.onclose((err) => broadcast({ type: 'disconnected', hub: 'market', reason: err?.message }))
@@ -396,6 +448,8 @@ export async function connectMarketHub(): Promise<void> {
     // Clear stale subscription tracking so subscribeToQuote() will re-invoke
     // SubscribeContractQuotes on the new hub instead of returning early.
     _subscribedContracts.clear()
+    _subscribedTrades.clear()
+    _subscribedDepth.clear()
     _marketHub = await buildMarketHub()
     await _marketHub.start()
     broadcast({ type: 'connected', hub: 'market' })
@@ -438,6 +492,48 @@ export async function subscribeToQuote(contractId: string): Promise<void> {
     console.log(`[TopstepX WS] Subscribed to quotes (sim): ${contractId}`)
   } catch (err) {
     console.error(`[TopstepX WS] SubscribeContractQuotes FAILED for ${contractId}:`, err)
+  }
+}
+
+// Subscribe to the trade tape (GatewayTrade) and DOM (GatewayDepth) for a
+// contract. Intent persists in the desired-sets so reconnects re-subscribe.
+export async function subscribeToTradesAndDepth(contractId: string): Promise<void> {
+  _desiredTrades.add(contractId)
+  _desiredDepth.add(contractId)
+
+  if (!_marketHub || _marketHub.state !== signalR.HubConnectionState.Connected) {
+    console.log('[TopstepX WS] subscribeToTradesAndDepth deferred — hub not connected, will subscribe on reconnect')
+    return
+  }
+  if (!_subscribedTrades.has(contractId)) {
+    try {
+      await _marketHub.invoke('SubscribeContractTrades', contractId)
+      _subscribedTrades.add(contractId)
+      console.log(`[TopstepX WS] Subscribed to trades: ${contractId}`)
+    } catch (err) {
+      console.error(`[TopstepX WS] SubscribeContractTrades FAILED for ${contractId}:`, err)
+    }
+  }
+  if (!_subscribedDepth.has(contractId)) {
+    try {
+      await _marketHub.invoke('SubscribeContractMarketDepth', contractId)
+      _subscribedDepth.add(contractId)
+      console.log(`[TopstepX WS] Subscribed to depth: ${contractId}`)
+    } catch (err) {
+      console.error(`[TopstepX WS] SubscribeContractMarketDepth FAILED for ${contractId}:`, err)
+    }
+  }
+}
+
+// Re-invoke trade/depth subscriptions on a (re)connected hub instance.
+async function resubscribeTradesDepth(hub: signalR.HubConnection): Promise<void> {
+  _subscribedTrades.clear()
+  _subscribedDepth.clear()
+  for (const contractId of Array.from(_desiredTrades)) {
+    try { await hub.invoke('SubscribeContractTrades', contractId); _subscribedTrades.add(contractId) } catch {}
+  }
+  for (const contractId of Array.from(_desiredDepth)) {
+    try { await hub.invoke('SubscribeContractMarketDepth', contractId); _subscribedDepth.add(contractId) } catch {}
   }
 }
 
