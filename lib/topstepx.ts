@@ -220,9 +220,9 @@ export async function calculateOpeningRange(symbol: 'NQ' | 'MNQ' = 'NQ', live = 
   // If today's 9:30 hasn't happened yet UTC-wise, go to yesterday
   if (orStart > now) orStart.setUTCDate(orStart.getUTCDate() - 1)
 
-  const orEnd = new Date(orStart.getTime() + 30 * 60 * 1000) // +30 min = 10:00 AM ET
+  const orEnd = new Date(orStart.getTime() + 15 * 60 * 1000) // +15 min = 9:45 AM ET
 
-  const bars = await getMinuteBars(contractId, orStart, orEnd, live, 35)
+  const bars = await getMinuteBars(contractId, orStart, orEnd, live, 20)
   if (!bars.length) throw new Error(`No bars for ${contractId} in OR window`)
 
   const orHigh = Math.max(...bars.map((b) => b.h))

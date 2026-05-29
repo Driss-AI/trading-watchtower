@@ -37,8 +37,8 @@ COMBINE RULES (non-negotiable):
 - Max contracts allowed: 5 MNQ
 
 STRATEGY: Opening Range Breakout (ORB) on MNQ
-- Opening range: 9:30-10:00 AM ET
-- Trade window: 10:00-11:30 AM ET
+- Opening range: 9:30-9:45 AM ET (15-minute OR)
+- Trade window: 9:45-11:30 AM ET
 - Entry: price breaks OR high (long) or OR low (short) with buffer
 - Stop: opposite OR boundary
 - Target: 1.5x OR size from entry
@@ -54,11 +54,11 @@ You must intelligently scale position size based on setup quality and risk.
 The key formula: contracts × stop_distance × $2 = dollar risk per trade.
 This dollar risk must NEVER exceed daily loss remaining.
 
-SIZING GUIDE:
-- 1 contract: Low confidence (<65%), after a loss, high VIX (>22), wide OR (>150pts), conflicting signals, drawdown within $600 of limit
-- 2 contracts: Moderate confidence (65-74%), decent setup but some uncertainty, elevated VIX (18-22), OR 100-150 pts
-- 3 contracts: Good confidence (75-84%), solid macro alignment, clean OR (60-100 pts), calendar clear, VIX normal
-- 4 contracts: High confidence (85-92%), everything aligned, ideal OR (50-80 pts), VIX low (12-16), strong trend day
+SIZING GUIDE (calibrated to 15-min ORs, which run smaller than 30-min ORs):
+- 1 contract: Low confidence (<65%), after a loss, high VIX (>22), wide OR (>100pts), conflicting signals, drawdown within $600 of limit
+- 2 contracts: Moderate confidence (65-74%), decent setup but some uncertainty, elevated VIX (18-22), OR 60-100 pts
+- 3 contracts: Good confidence (75-84%), solid macro alignment, clean OR (40-70 pts), calendar clear, VIX normal
+- 4 contracts: High confidence (85-92%), everything aligned, ideal OR (30-60 pts), VIX low (12-16), strong trend day
 - 5 contracts: Maximum conviction (93%+), A++ setup, perfect macro alignment, ideal OR, no news, VIX <15, first trade of day with no losses — RARE, maybe 1-2 days/month
 
 CRITICAL SIZING RULES:
@@ -73,7 +73,7 @@ CRITICAL SIZING RULES:
 WHEN TO SKIP (NO TRADE):
 - FOMC, CPI, NFP, GDP days — zero exceptions
 - VIX > 30 — too volatile for a combine account
-- OR size < 20 or > 250 points — too narrow (no room) or too wide (stop too far)
+- OR size < 15 or > 150 points — too narrow (no room) or too wide (stop too far) [15-min OR scale]
 - Macro signals strongly conflict — if half say bullish and half say bearish, sit out
 - After 2 losses, stop for the day.
 - Friday afternoon — avoid weekend gap risk
@@ -165,7 +165,7 @@ export async function analyzePreSession(
 }
 
 // ─── OR ASSESSMENT ───────────────────────────────────────────────────────────
-// Called once when OR locks at 10:00 AM ET.
+// Called once when OR locks at 9:45 AM ET (15-min OR).
 
 export async function analyzeOpeningRange(
   orHigh: number,
@@ -179,12 +179,12 @@ export async function analyzeOpeningRange(
   const ibs = briefing?.ibs
   const nqPrice = briefing?.nq?.price
 
-  const prompt = `The Opening Range just locked at 10:00 AM ET. Assess this OR for trading.
+  const prompt = `The 15-minute Opening Range just locked at 9:45 AM ET. Assess this OR for trading.
 
 OPENING RANGE:
 - OR High: ${orHigh.toFixed(2)}
 - OR Low: ${orLow.toFixed(2)}
-- OR Size: ${orSize.toFixed(2)} points (ideal: 50-120, acceptable: 20-200)
+- OR Size: ${orSize.toFixed(2)} points (ideal: 30-80, acceptable: 15-150)
 - Current Price: ${lastPrice.toFixed(2)} (${lastPrice > orHigh ? 'ABOVE OR' : lastPrice < orLow ? 'BELOW OR' : 'INSIDE OR'})
 ${vwap ? `- VWAP: ${vwap.toFixed(2)} (price ${lastPrice > vwap ? 'above' : 'below'} VWAP)` : ''}
 ${ibs ? `- IBS: ${ibs.value} (${ibs.bias})` : ''}
@@ -225,8 +225,8 @@ Assess the OR quality and whether we should trade it. Consider:
   }
 
   return {
-    quality: orSize >= 50 && orSize <= 120 ? 'good' : 'fair',
-    shouldTrade: preSession.shouldTrade && orSize >= 20 && orSize <= 200,
+    quality: orSize >= 30 && orSize <= 80 ? 'good' : 'fair',
+    shouldTrade: preSession.shouldTrade && orSize >= 15 && orSize <= 150,
     preferredDirection: preSession.bias === 'neutral' ? 'either' : preSession.bias,
     reasoning: 'AI analysis unavailable — using mechanical OR rules',
   }

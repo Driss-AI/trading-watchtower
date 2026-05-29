@@ -19,7 +19,7 @@ const SCHEDULE: { h: number; m: number; type: AlertType }[] = [
   { h: 9,  m: 15, type: 'warning15' },
   { h: 9,  m: 25, type: 'warning5' },
   { h: 9,  m: 30, type: 'open' },
-  { h: 10, m: 0,  type: 'trade' },
+  { h: 9,  m: 45, type: 'trade' },
   { h: 11, m: 30, type: 'close' },
 ]
 
@@ -99,8 +99,8 @@ export function buildAlertMessage(type: AlertType): string {
         '🟢 <b>Trading Watchtower</b>',
         '',
         '<b>MARKET OPEN</b>',
-        'Opening Range is now building',
-        '⏱ 9:30 → 10:00 AM ET',
+        'Opening Range is now building (15-min)',
+        '⏱ 9:30 → 9:45 AM ET',
         '',
         'Watch and wait — do NOT trade yet',
       ].join('\n')
@@ -111,7 +111,7 @@ export function buildAlertMessage(type: AlertType): string {
         '',
         '<b>TRADE WINDOW OPEN</b>',
         'OR is complete — breakout alerts active',
-        `⏱ 10:00 → 11:30 AM ET  |  ${dubai(10, 0)} → ${dubai(11, 30)} Dubai`,
+        `⏱ 9:45 → 11:30 AM ET  |  ${dubai(9, 45)} → ${dubai(11, 30)} Dubai`,
         '',
         'Max 2 trades · $1K daily limit · 2:1 R:R minimum',
       ].join('\n')

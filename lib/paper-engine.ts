@@ -5,8 +5,8 @@
 //
 // State machine: idle → forming → monitoring → closed
 //   idle:       engine off or outside trading hours
-//   forming:    9:30–10:00 AM ET — building the opening range from live ticks
-//   monitoring: 10:00–11:30 AM ET — watching for breakout, managing positions
+//   forming:    9:30–9:45 AM ET — building the opening range from live ticks
+//   monitoring: 9:45–11:30 AM ET — watching for breakout, managing positions
 //   closed:     after 11:30 AM ET — session done, no new trades
 
 import { PrismaClient } from '@prisma/client'
@@ -280,11 +280,11 @@ function updatePhase(): void {
   if (totalMin < 570) {
     // Before 9:30 AM
     _phase = 'idle'
-  } else if (totalMin < 600) {
-    // 9:30–10:00 AM: forming OR
+  } else if (totalMin < 585) {
+    // 9:30–9:45 AM: forming OR (15-min window)
     _phase = 'forming'
   } else if (totalMin < _config.sessionEndMinute) {
-    // 10:00 AM – session end: monitoring
+    // 9:45 AM – session end: monitoring
     if (!_orLocked && _orHigh !== null && _orLow !== null) {
       _orLocked = true
       const orSize = (_orHigh - _orLow).toFixed(2)

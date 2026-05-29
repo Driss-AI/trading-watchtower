@@ -168,7 +168,7 @@ const EVENT_INTEL: Record<string, EventIntel> = {
     orbRisk: 'high',
     avoidBefore: 15,
     avoidAfter: 25,
-    traderNote: '⚠️ CAUTION. Drops at 10:00 AM ET — right in the middle of the OR window. Wait for the reaction to settle before confirming OR levels.',
+    traderNote: '⚠️ CAUTION. Drops at 10:00 AM ET — 15 minutes after the (15-min) OR locks. The release will move price inside the trade window; expect a fake breakout right after the print.',
     nqContext: 'First business day of each month. Reading above 50 = factories expanding. Tech sector is sensitive to manufacturing health.',
   },
 
