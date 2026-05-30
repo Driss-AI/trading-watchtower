@@ -24,8 +24,13 @@ function getClient(): Anthropic {
   return _client
 }
 
-const FAST_MODEL = 'claude-haiku-4-5-20251001'
-const DEEP_MODEL = 'claude-sonnet-4-6'
+// Intelligence is highest where capital is committed. The breakout call risks
+// real combine equity and weighs multi-signal nuance — Opus 4.8. OR + pre-session
+// filter risk but don't commit — Sonnet 4.6. The post-hoc debrief is text gen
+// only — Haiku is fine. Latency is irrelevant inside a 1-minute bar window.
+const TRADE_MODEL = 'claude-opus-4-8'         // breakout call (the money decision)
+const REVIEW_MODEL = 'claude-sonnet-4-6'      // pre-session + OR assessment
+const DEBRIEF_MODEL = 'claude-haiku-4-5-20251001'  // post-session debrief
 
 const SYSTEM_PROMPT = `You are an elite NQ/MNQ day trader running a 50K TopStepX combine account.
 
@@ -110,6 +115,12 @@ ORB TRAP & REVERSAL PLAYBOOK (apply at the moment a break candle closes past OR 
 - A 'caution' from any gate means proceed only if your confidence is high; otherwise size down to 1 contract or skip.
 - A 'confirm' from a gate is a tailwind — but never a substitute for your own assessment.)
 
+— YOUR VETO AUTHORITY (vetoTake field):
+- You have explicit, structured veto power. Set vetoTake=true ONLY when mechanical gates said TAKE but your read says this is a poor entry — examples: order flow unavailable, structural levels (prior-day H/L, VWAP) hostile, time-of-day unfavorable, multi-bar context contradicts the break.
+- You CANNOT escalate a SKIP into a TAKE. If mechanical gates already skipped, you skip too. Your job is risk reduction, never risk inflation.
+- You CANNOT exceed the hardCap contract count shown in the prompt.
+- When vetoTake=true, MUST set enter=false, contracts=0, and a concise vetoReason. When vetoTake=false (default), leave vetoReason empty.
+
 Always explain your reasoning concisely. Be specific about what data drove each decision, especially the contract count. When candle pattern + order flow + volume all agree, say so explicitly.`
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
@@ -144,6 +155,11 @@ export interface BreakoutDecision {
   contracts: number
   adjustedStop?: number
   adjustedTarget?: number
+  // Structured veto: when the brain affirmatively kills a mechanical TAKE.
+  // Measurable so we can score AI-vs-mechanical contribution (veto rate,
+  // veto outcomes). vetoTake=true MUST coincide with enter=false, contracts=0.
+  vetoTake?: boolean
+  vetoReason?: string
 }
 
 // ─── PRE-SESSION ANALYSIS ────────────────────────────────────────────────────
@@ -166,7 +182,7 @@ export async function analyzePreSession(
 
   try {
     const response = await getClient().messages.create({
-      model: DEEP_MODEL,
+      model: REVIEW_MODEL,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
@@ -238,7 +254,7 @@ Assess the OR quality and whether we should trade it. Consider:
 
   try {
     const response = await getClient().messages.create({
-      model: FAST_MODEL,
+      model: REVIEW_MODEL,
       max_tokens: 512,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
@@ -355,7 +371,7 @@ Cite the pattern, volume ratio, and delta in your reasoning so the decision is a
 
   try {
     const response = await getClient().messages.create({
-      model: FAST_MODEL,
+      model: TRADE_MODEL,
       max_tokens: 512,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
@@ -467,11 +483,19 @@ const breakoutTool: Anthropic.Tool = {
     properties: {
       enter: {
         type: 'boolean',
-        description: 'Whether to enter this trade.',
+        description: 'Whether to enter this trade. Must be false when vetoTake=true.',
+      },
+      vetoTake: {
+        type: 'boolean',
+        description: 'Set true ONLY when mechanical gates said TAKE but you are vetoing for context reasons (order flow degraded, structural levels hostile, time-of-day bad, multi-bar context contradicts). False otherwise. Cannot escalate a SKIP into a TAKE.',
+      },
+      vetoReason: {
+        type: 'string',
+        description: 'If vetoTake=true, concise reason (one short clause). Empty string otherwise.',
       },
       reasoning: {
         type: 'string',
-        description: 'Concise reasoning (2-3 sentences). Must explain the contract count choice with specific dollar risk math.',
+        description: 'Concise reasoning (2-3 sentences). Must explain the contract count choice with specific dollar risk math. Cite pattern, volume ratio, and delta.',
       },
       confidence: {
         type: 'number',
@@ -479,10 +503,10 @@ const breakoutTool: Anthropic.Tool = {
       },
       contracts: {
         type: 'number',
-        description: 'Number of MNQ contracts (1-5). MUST respect risk limits: contracts × risk_per_contract < daily budget remaining. After a loss, max 2.',
+        description: 'Number of MNQ contracts (1-5). MUST respect risk limits: contracts × risk_per_contract < daily budget remaining. After a loss, max 2. Set 0 when enter=false.',
       },
     },
-    required: ['enter', 'reasoning', 'confidence', 'contracts'],
+    required: ['enter', 'vetoTake', 'vetoReason', 'reasoning', 'confidence', 'contracts'],
   },
 }
 
@@ -595,7 +619,7 @@ export async function summarizeSession(input: SessionDebriefInput): Promise<stri
   const prompt = buildDebriefPrompt(input)
   try {
     const response = await getClient().messages.create({
-      model: FAST_MODEL,
+      model: DEBRIEF_MODEL,
       max_tokens: 400,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],

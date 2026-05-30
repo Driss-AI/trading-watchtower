@@ -901,9 +901,15 @@ async function consultAIForBreakout(
     _lastBreakout = decision
     _aiAnalysisInProgress = false
 
+    if (decision.vetoTake) {
+      const reason = decision.vetoReason?.trim() || decision.reasoning
+      console.log(`[PaperEngine] AI VETOED breakout: ${reason}`)
+      notify(`⛔ <b>AI VETO</b>\n${direction} @ ${entryPrice.toFixed(2)}\n${reason}`)
+      return
+    }
     if (!decision.enter) {
       console.log(`[PaperEngine] AI SKIPPED breakout: ${decision.reasoning}`)
-      notify(`⏭️ <b>BREAKOUT SKIPPED</b>\n${direction} @ ${entryPrice}\n${decision.reasoning}`)
+      notify(`⏭️ <b>BREAKOUT SKIPPED</b>\n${direction} @ ${entryPrice.toFixed(2)}\n${decision.reasoning}`)
       return
     }
 
@@ -921,12 +927,15 @@ async function consultAIForBreakout(
       await openPosition(direction, useEntry, decision.adjustedStop ?? stopPrice, decision.adjustedTarget ?? targetPrice, contracts)
     }
   } catch (err) {
-    console.error('[PaperEngine] AI breakout check failed, using mechanical entry:', err)
+    // Safety policy: AI failure = skip. No mechanical fallback. A failed AI
+    // call means we lost the brain — the one component that weighs context
+    // against the mechanical "everything passed" verdict. Entering anyway
+    // would be exactly the kind of "smart-on-paper, dumb-in-practice" trade
+    // the brain exists to filter.
+    console.error('[PaperEngine] AI breakout check failed — skipping per safety policy:', err)
     _aiAnalysisInProgress = false
-    _lastBreakout = { enter: true, reasoning: 'AI failed — mechanical fallback', confidence: 50, contracts: mechanicalContracts }
-    if (!_openTrade && _enabled && _phase === 'monitoring') {
-      await openPosition(direction, _lastPrice > 0 ? _lastPrice : entryPrice, stopPrice, targetPrice, mechanicalContracts)
-    }
+    _lastBreakout = { enter: false, reasoning: 'AI unavailable — skip (no mechanical fallback)', confidence: 0, contracts: 0 }
+    notify(`⏭️ <b>BREAKOUT SKIPPED</b>\n${direction} @ ${entryPrice.toFixed(2)}\nAI analysis failed — skipping per safety policy`)
   }
 }
 

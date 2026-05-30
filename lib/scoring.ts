@@ -1,6 +1,13 @@
 // ─── TRADING WATCHTOWER — SCORING ENGINE ─────────────────────────────────────
 // Calculates trade quality score 0–100 with decision logic
 
+// Single source of truth for "did we breach the daily loss limit today?"
+// dailyPnl is signed: negative = loss. Only a loss can breach. A positive P&L
+// of +$1,000 is NOT a breach of a $1,000 daily-loss limit.
+export function isDailyLossLimitHit(dailyPnl: number, dailyLossLimit: number): boolean {
+  return dailyPnl <= -dailyLossLimit
+}
+
 export interface ScoreInput {
   // Market conditions (manual input)
   hasHighImpactNews: boolean

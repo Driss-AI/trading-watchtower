@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest'
-import { calculateScore, calculateRisk, POINT_VALUES, type ScoreInput } from './scoring'
+import { calculateScore, calculateRisk, isDailyLossLimitHit, POINT_VALUES, type ScoreInput } from './scoring'
+
+describe('isDailyLossLimitHit', () => {
+  it('returns true only when daily P&L breaches the downside limit', () => {
+    expect(isDailyLossLimitHit(-1000, 1000)).toBe(true)
+    expect(isDailyLossLimitHit(-1500, 1000)).toBe(true)
+  })
+
+  it('does NOT treat positive P&L as a loss-limit breach (regression for Math.abs bug)', () => {
+    expect(isDailyLossLimitHit(+1000, 1000)).toBe(false)
+    expect(isDailyLossLimitHit(+1500, 1000)).toBe(false)
+    expect(isDailyLossLimitHit(+9999, 1000)).toBe(false)
+  })
+
+  it('returns false at zero and within the safe band', () => {
+    expect(isDailyLossLimitHit(0, 1000)).toBe(false)
+    expect(isDailyLossLimitHit(-999.99, 1000)).toBe(false)
+  })
+})
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 

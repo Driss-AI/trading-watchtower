@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateScore } from '@/lib/scoring'
+import { calculateScore, isDailyLossLimitHit } from '@/lib/scoring'
 
 // GET /api/sessions — get today's session (or create it)
 export async function GET(req: NextRequest) {
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       cleanRoomToTarget: body.cleanRoomToTarget ?? true,
       tradesToday,
       lossesToday,
-      dailyLossLimitHit: Math.abs(dailyPnl) >= dailyLossLimit,
+      dailyLossLimitHit: isDailyLossLimitHit(dailyPnl, dailyLossLimit),
       maxTradesPerDay,
       maxLosingTradesPerDay,
     }

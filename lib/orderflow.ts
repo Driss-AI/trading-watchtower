@@ -7,9 +7,13 @@
 //   2. DOM    — resting liquidity just beyond the OR boundary. A large opposing
 //               wall the breakout must eat through = absorption / trap risk.
 //
-// assessBreakout() folds these into a verdict (confirm / caution / veto). It is
-// deliberately FAIL-OPEN: if data is stale or missing it never vetoes, so a
-// feed hiccup can't silently block all trading.
+// assessBreakout() folds these into a verdict (confirm / caution / veto).
+//
+// SAFETY POLICY: decision-time data must be fresh. If trades or DOM are stale
+// or missing at the moment of a breakout, the verdict is 'caution' with
+// available=false. The AI then sees explicit "orderflow unavailable" and per
+// the system-prompt CAUTION rule must require strong conviction or size down /
+// skip. The engine never auto-confirms a breakout when it cannot see the tape.
 //
 // Thresholds below are initial heuristics — they should be tuned against live
 // MNQ data. The hard veto only fires on egregious cases by design.
@@ -143,7 +147,9 @@ export interface OrderflowAssessment {
   reasons: string[]
 }
 
-// Evaluate a breakout against live order flow. FAIL-OPEN: unavailable → confirm.
+// Evaluate a breakout against live order flow. FAIL-CLOSED: unavailable → caution
+// (the AI must affirm without flow data, and the system-prompt CAUTION rule
+// applies — strong conviction required or size down / skip).
 export function assessBreakout(
   direction: 'LONG' | 'SHORT',
   refPrice: number,
@@ -154,10 +160,10 @@ export function assessBreakout(
   if (isStale() || refPrice <= 0) {
     return {
       available: false, cumDelta, shortDelta,
-      deltaConfirms: true, divergence: 'none',
+      deltaConfirms: false, divergence: 'none',
       resistanceVol: 0, supportVol: 0, wallRisk: 'none',
-      verdict: 'confirm',
-      reasons: ['order flow unavailable/stale — not vetoing (fail-open)'],
+      verdict: 'caution',
+      reasons: ['order flow unavailable/stale — caution (fail-closed: brain must affirm without flow data)'],
     }
   }
 

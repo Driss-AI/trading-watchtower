@@ -1,8 +1,8 @@
 # Trading Watchtower
 
-> NQ/MNQ ORB Risk Management System — TopStep 100K Evaluation
+> NQ/MNQ ORB Risk Management System — TopStep 50K Combine
 
-A semi-automated trading risk and decision system for Opening Range Breakout trading on NQ/MNQ futures during the New York session. Built for TopStep 100K evaluation accounts.
+A semi-automated trading risk and decision system for Opening Range Breakout trading on NQ/MNQ futures during the New York session. Built for TopStep 50K combine accounts.
 
 **What it does:**
 - Scores your trade setups 0–100 before you enter
@@ -186,10 +186,10 @@ NODE_ENV = production
 
 ### Step 6 — First use
 
-1. Go to **Settings** and verify your account rules (daily loss limit = $2,000 for TopStep 100K)
+1. Go to **Settings** and verify your account rules (daily loss limit = $1,000 for TopStep 50K)
 
 2. Every trading day, go to **Session** before market open and fill in:
-   - Opening range (9:30–10:00 NY)
+   - Opening range (9:30–9:45 NY, 15-minute OR)
    - Market conditions (VIX, news, bias)
    - Hit **"Calculate Score"**
 
@@ -276,13 +276,14 @@ When you're ready to receive ORB breakout alerts from TradingView:
 
 ---
 
-## TopStep 100K Rules (built in)
+## TopStep 50K Combine Rules (built in)
 
-- Daily Loss Limit: $2,000 (configurable)
-- Trailing Drawdown: $3,000
-- Profit Target: $6,000
+- Daily Loss Limit: $1,000 (configurable)
+- Trailing Drawdown: $2,000
+- Profit Target: $3,000
 - Max Trades/Day: 2 (configurable)
-- Consistency Rule: No day >40% of profit target
+- Max Losing Trades/Day: 2 (configurable)
+- Max Contracts: 5 MNQ
 - No Weekend Holds: Close before Friday 4:15 PM EST
 
 ---
@@ -357,4 +358,4 @@ npx prisma migrate deploy && npm start
 
 ---
 
-Built for Driss — TopStep 100K Trading Combine
+Built for Driss — TopStep 50K Trading Combine

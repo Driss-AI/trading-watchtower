@@ -32,11 +32,20 @@ describe('delta aggregation', () => {
   })
 })
 
-describe('assessBreakout — fail-open', () => {
-  it('never vetoes when no data has arrived (stale)', () => {
+describe('assessBreakout — fail-closed on stale/missing data', () => {
+  it('returns caution (not confirm) when no trade data has arrived', () => {
     const a = assessBreakout('LONG', 100)
     expect(a.available).toBe(false)
-    expect(a.verdict).toBe('confirm')
+    expect(a.verdict).toBe('caution')
+    expect(a.deltaConfirms).toBe(false)
+    expect(a.reasons.join(' ')).toMatch(/fail-closed/)
+  })
+
+  it('returns caution when refPrice is invalid', () => {
+    ingestTrades([{ price: 100, volume: 5, type: 0 }])
+    const a = assessBreakout('LONG', 0)
+    expect(a.available).toBe(false)
+    expect(a.verdict).toBe('caution')
   })
 })
 
