@@ -28,9 +28,9 @@ function getClient(): Anthropic {
 // real combine equity and weighs multi-signal nuance — Opus 4.8. OR + pre-session
 // filter risk but don't commit — Sonnet 4.6. The post-hoc debrief is text gen
 // only — Haiku is fine. Latency is irrelevant inside a 1-minute bar window.
-const TRADE_MODEL = 'claude-opus-4-8'         // breakout call (the money decision)
-const REVIEW_MODEL = 'claude-sonnet-4-6'      // pre-session + OR assessment
-const DEBRIEF_MODEL = 'claude-haiku-4-5-20251001'  // post-session debrief
+export const TRADE_MODEL = 'claude-opus-4-8'         // breakout call (the money decision)
+export const REVIEW_MODEL = 'claude-sonnet-4-6'      // pre-session + OR assessment
+export const DEBRIEF_MODEL = 'claude-haiku-4-5-20251001'  // post-session debrief
 
 const SYSTEM_PROMPT = `You are an elite NQ/MNQ day trader running a 50K TopStepX combine account.
 

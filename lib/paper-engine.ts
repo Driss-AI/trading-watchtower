@@ -22,7 +22,6 @@ import { calculateRisk, POINT_VALUES } from './scoring'
 import {
   analyzePreSession,
   analyzeOpeningRange,
-  analyzeBreakout,
   summarizeSession,
   type PreSessionDecision,
   type ORAssessment,
@@ -49,14 +48,21 @@ import {
   type CandleSnapshot,
   type EngineCandle,
 } from './candles'
-import {
-  evaluatePatternGate,
-  evaluateVolumeGate,
-  combineVerdicts,
-  type PatternGate,
-  type VolumeGate,
-} from './breakout-gate'
+import type { PatternGate, VolumeGate } from './breakout-gate'
 import { sendTelegramAlert } from './telegram'
+
+// Sprint 1: shared signal engine + opportunity log.
+import { evaluateSignal } from './signal-engine'
+import { collectBreakoutSignalState } from './signal-context/collect'
+import { writeSignalOpportunity, linkPaperTrade } from './opportunity-log/record'
+import { resolveOutcome } from './opportunity-log/attach-outcome'
+import {
+  trackSkipped,
+  onTick as monitorOnTick,
+  resolveAllAtSessionEnd as monitorResolveAll,
+  resetMonitorDay,
+} from './opportunity-log/monitor-skipped'
+import { renderTradeCard } from './trade-card/render'
 
 // ─── TELEGRAM HELPER ────────────────────────────────────────────────────────
 
@@ -242,6 +248,12 @@ let _ofVetoActive = false // tracks order-flow veto so we notify once, not every
 let _lastOrderflow: OrderflowAssessment | null = null // assessment at the last evaluated breakout
 let _ofVetoCount = 0 // distinct order-flow veto episodes today (for the debrief)
 let _ofVetoReasons: string[] = []
+
+// Sprint 1: tie an open paper trade back to its SignalOpportunity row so the
+// outcome (mfeR / maeR / outcomeR / label) can be resolved on close.
+let _currentOpportunityId: string | null = null
+let _openTradeMfePts = 0
+let _openTradeMaePts = 0
 let _lastDebrief: string | null = null // today's AI debrief once the session closes
 let _briefingCache: Awaited<ReturnType<typeof fetchMarketBriefing>> | null = null
 
@@ -472,6 +484,10 @@ function checkDayReset(): void {
     _lastVolumeGate = null
     resetOrderflowDay()
     resetCandlesDay()
+    resetMonitorDay()
+    _currentOpportunityId = null
+    _openTradeMfePts = 0
+    _openTradeMaePts = 0
   }
 }
 
@@ -506,6 +522,13 @@ function processTick(quote: WSQuote): void {
 
   checkDayReset()
   updatePhase()
+
+  // Update would-have outcomes for any tracked skipped signals.
+  if (_phase === 'monitoring' || _phase === 'closed') {
+    monitorOnTick(quote.price).catch((err) =>
+      console.error('[PaperEngine] monitorOnTick failed:', err),
+    )
+  }
 
   switch (_phase) {
     case 'forming':
@@ -551,6 +574,11 @@ function handleClosed(price: number): void {
     console.log(`[PaperEngine] Session end — closing open position at ${price}`)
     closePosition(price, 'session_end')
   }
+
+  // Resolve any skipped opportunities that never hit target/stop as 'inconclusive'.
+  monitorResolveAll().catch((err) =>
+    console.error('[PaperEngine] monitorResolveAll failed:', err),
+  )
 
   // Send an AI-written debrief once per session — but only if a real session
   // ran (OR locked or trades taken), so a late engine boot doesn't post a blank.
@@ -664,15 +692,15 @@ function armPendingIfTriggered(price: number): void {
   notify(`⏳ <b>BREAK ARMED</b>\n${direction} @ ${price.toFixed(2)}\nWaiting for 1-min close to confirm`)
 }
 
-// Once per closed 1-min bar, evaluate any armed pending break:
-//   - If the close pulled back inside OR → cancel the arm (false break).
-//   - If still beyond, run pattern + volume + order-flow gates.
-//   - If any gate vetoes → log and clear.
-//   - Otherwise consult the AI breakout decision with the enriched context.
+// Once per closed 1-min bar, evaluate any armed pending break through the
+// shared signal engine. The engine does the mechanical gates + AI review +
+// finalization; this function orchestrates: collect → evaluate → log → render
+// → notify → openPosition (or track skipped). Pure logic lives in lib/signal-engine.
 function evaluatePendingOnClose(): void {
   if (!_pendingBreak || _entryLock) return
   if (!passesGuards()) return
   if (_orHigh === null || _orLow === null) return
+  if (!_settings) return
 
   const latest = getLatestClosedCandle()
   if (!latest) return
@@ -683,8 +711,8 @@ function evaluatePendingOnClose(): void {
 
   const { direction } = _pendingBreak
 
-  // Did the close come back inside the OR? (false break)
-  const closedInsideLong  = direction === 'LONG'  && latest.close <= _orHigh
+  // Did the close come back inside the OR? (false break — no engine call needed)
+  const closedInsideLong = direction === 'LONG' && latest.close <= _orHigh
   const closedInsideShort = direction === 'SHORT' && latest.close >= _orLow
   if (closedInsideLong || closedInsideShort) {
     console.log(`[PaperEngine] Pending ${direction} break failed — bar closed back inside OR (${latest.close.toFixed(2)})`)
@@ -693,250 +721,144 @@ function evaluatePendingOnClose(): void {
     return
   }
 
-  // Pattern gate
-  const recent = getRecentCandles(5)
-  const patternGate = evaluatePatternGate(direction, recent)
-  _lastPatternGate = patternGate
-  if (_config.enablePatternGate && patternGate.verdict === 'veto') {
-    recordVeto('pattern', direction, latest.close, patternGate.reasons.join(' — '))
-    notify(`⛔ <b>PATTERN VETO</b>\n${direction} @ ${latest.close.toFixed(2)}\n${patternGate.patternName ?? '?'} (${patternGate.patternStrength ?? 0}%)\n${patternGate.orbContext ?? ''}`)
-    _pendingBreak = null
-    return
-  }
-
-  // Volume gate
-  const avgVol = getAvgVolume(20)
-  const volumeGate = evaluateVolumeGate(latest.volume, avgVol)
-  _lastVolumeGate = volumeGate
-  if (_config.enableVolumeGate && volumeGate.verdict === 'veto') {
-    recordVeto('volume', direction, latest.close, volumeGate.reasons.join(' — '))
-    notify(`⛔ <b>VOLUME VETO</b>\n${direction} @ ${latest.close.toFixed(2)}\nBreak bar ${volumeGate.breakVolume} vs ${volumeGate.avgVolume.toFixed(0)} avg (${volumeGate.ratio.toFixed(2)}×)`)
-    _pendingBreak = null
-    return
-  }
-
-  // Order-flow gate
-  const orderflow = assessBreakout(direction, latest.close)
-  _lastOrderflow = orderflow
-  if (_config.enableOrderflowVeto && orderflow.verdict === 'veto') {
-    recordVeto('orderflow', direction, latest.close, orderflow.reasons.join('; '))
-    notify(`⛔ <b>ORDER-FLOW VETO</b>\n${direction} @ ${latest.close.toFixed(2)}\n${orderflow.reasons.join('\n')}`)
-    _pendingBreak = null
-    return
-  }
-
-  // Position sizing
-  const orSize = _orHigh - _orLow
-  const stopPrice = direction === 'LONG' ? _orLow : _orHigh
-  const targetPrice = direction === 'LONG'
-    ? latest.close + orSize * _config.targetMultiple
-    : latest.close - orSize * _config.targetMultiple
-
-  const riskCalc = calculateRisk({
-    market: 'MNQ', entry: latest.close, stop: stopPrice, target: targetPrice,
-    contracts: _config.maxContracts, accountSize: _settings!.accountSize,
-    dailyLossLimit: _settings!.dailyLossLimit, currentDailyPnl: _dailyPnl,
-  })
-  if (riskCalc.violatesLimit) {
-    console.log(`[PaperEngine] Entry blocked — risk violation: ${riskCalc.violationMessage}`)
-    _pendingBreak = null
-    return
-  }
-
-  const mechanicalContracts = Math.min(_config.maxContracts, Math.max(1, riskCalc.maxContractsAllowed))
-
   _entryLock = true
   const pendingDirection = direction
-  consultAIForBreakout(
-    direction, latest.close, stopPrice, targetPrice, mechanicalContracts,
-    orderflow, patternGate, volumeGate, latest,
-  )
+  runSignalEvaluation(direction, latest.close)
     .finally(() => {
       _entryLock = false
       if (_pendingBreak && _pendingBreak.direction === pendingDirection) _pendingBreak = null
     })
 }
 
-function checkEntry(price: number): void {
-  if (_entryLock) return
+// Sprint 1 orchestration: collect state, run the pure signal engine, log one
+// SignalOpportunity row (taken or skipped), render the trade card, notify,
+// and act on the decision (open position or track would-have outcome).
+async function runSignalEvaluation(
+  direction: 'LONG' | 'SHORT',
+  refPrice: number,
+): Promise<void> {
   if (!_settings) return
   if (_orHigh === null || _orLow === null) return
 
-  // Risk guards
-  if (_tradesCount >= _settings.maxTradesPerDay) return
-  if (_lossesCount >= _settings.maxLosingTradesPerDay) return
-  if (_dailyPnl <= -_settings.dailyLossLimit) return
+  // Collect state — this is the ONE I/O point.
+  const state = collectBreakoutSignalState({
+    date: getToday(),
+    market: 'MNQ',
+    direction,
+    orHigh: _orHigh,
+    orLow: _orLow,
+    bufferPoints: _config.bufferPoints,
+    targetMultiple: _config.targetMultiple,
+    refPrice,
+    dailyPnl: _dailyPnl,
+    tradesCount: _tradesCount,
+    lossesCount: _lossesCount,
+    dailyLossLimit: _settings.dailyLossLimit,
+    trailingDrawdownRemaining: _settings.dailyLossLimit * 2,
+    maxContractsConfig: _config.maxContracts,
+    preSession: _preSession,
+    orAssessment: _orAssessment,
+    briefing: _briefingCache,
+    enablePatternGate: _config.enablePatternGate,
+    enableVolumeGate: _config.enableVolumeGate,
+    enableOrderflowVeto: _config.enableOrderflowVeto,
+  })
 
-  // AI pre-session says no trade
-  if (_preSession && !_preSession.shouldTrade) {
-    return
+  // Pure decision — same code path paper, backtest, and live will share.
+  _aiAnalysisInProgress = true
+  const decision = await evaluateSignal(state)
+  _aiAnalysisInProgress = false
+
+  // Mirror gate reads into legacy cockpit state (so the UI stays unchanged).
+  _lastPatternGate = decision.pattern as unknown as PatternGate
+  _lastVolumeGate = decision.volume as unknown as VolumeGate
+  _lastOrderflow = decision.orderflow as unknown as OrderflowAssessment
+  _lastBreakout = {
+    enter: decision.finalDecision === 'take',
+    reasoning: decision.rationale,
+    confidence: decision.ai.status === 'ok' ? decision.ai.confidence : 0,
+    contracts: decision.finalContracts,
+    vetoTake: decision.ai.status === 'ok' ? decision.ai.vetoTake : undefined,
+    vetoReason: decision.ai.vetoReason ?? undefined,
   }
 
-  // AI OR assessment says no trade
-  if (_orAssessment && !_orAssessment.shouldTrade) {
-    return
+  // Record veto in the shared feed for the cockpit / debrief.
+  if (decision.finalDecision === 'skip' && decision.skipSource) {
+    recordVeto(
+      decision.skipSource === 'mechanical' ? 'pattern' :
+      decision.skipSource === 'ai-veto' ? 'orderflow' :
+      'orderflow',
+      direction,
+      refPrice,
+      `[${decision.skipSource}] ${decision.skipReason}`,
+    )
   }
 
-  const orSize = _orHigh - _orLow
+  // Persist the opportunity row.
+  let opportunityId: string | null = null
+  try {
+    opportunityId = await writeSignalOpportunity({ state, decision, source: 'paper' })
+  } catch (err) {
+    console.error('[PaperEngine] writeSignalOpportunity failed:', err)
+  }
+
+  // Render the trade card and notify.
+  const card = renderTradeCard(decision, {
+    riskDollarsPerContract: Math.abs(decision.entry - decision.stop) * MNQ_POINT_VALUE,
+    dailyBudgetRemaining: _settings.dailyLossLimit + _dailyPnl,
+  })
+  notify(card)
+
+  if (decision.finalDecision === 'take' && !_openTrade && _enabled && _phase === 'monitoring') {
+    _currentOpportunityId = opportunityId
+    _openTradeMfePts = 0
+    _openTradeMaePts = 0
+    const useEntry = _lastPrice > 0 ? _lastPrice : decision.entry
+    await openPosition(direction, useEntry, decision.stop, decision.target, decision.finalContracts)
+    // After openPosition, _openTrade may have been set — read through an
+    // un-narrowing accessor so TS doesn't keep the pre-await null narrowing.
+    const tradeDbId = (_openTrade as { dbId: string } | null)?.dbId ?? null
+    if (opportunityId && tradeDbId) {
+      try {
+        await linkPaperTrade(opportunityId, tradeDbId)
+      } catch (err) {
+        console.error('[PaperEngine] linkPaperTrade failed:', err)
+      }
+    }
+  } else if (decision.finalDecision === 'skip' && opportunityId) {
+    // Track would-have outcome for the skipped signal.
+    trackSkipped({
+      opportunityId,
+      direction,
+      wouldEntry: decision.entry,
+      wouldStop: decision.stop,
+      wouldTarget: decision.target,
+    })
+  }
+}
+
+// Legacy tick-on-cross path. Active only when enableWaitForClose=false. Now
+// routes through the shared signal engine instead of inlining gate logic — so
+// both paths produce SignalOpportunity rows with identical decision semantics.
+function checkEntry(price: number): void {
+  if (_entryLock) return
+  if (!passesGuards()) return
+  if (_orHigh === null || _orLow === null) return
+
   const longTrigger = _orHigh + _config.bufferPoints
   const shortTrigger = _orLow - _config.bufferPoints
 
   let direction: 'LONG' | 'SHORT' | null = null
-  let entryPrice = price
-  let stopPrice: number
-  let targetPrice: number
+  if (price > longTrigger) direction = 'LONG'
+  else if (price < shortTrigger) direction = 'SHORT'
+  if (!direction) return
 
-  if (price > longTrigger) {
-    direction = 'LONG'
-    stopPrice = _orLow
-    targetPrice = entryPrice + orSize * _config.targetMultiple
-  } else if (price < shortTrigger) {
-    direction = 'SHORT'
-    stopPrice = _orHigh
-    targetPrice = entryPrice - orSize * _config.targetMultiple
-  } else {
-    return
-  }
+  if (!directionAllowed(direction)) return
 
-  // AI direction filter: if AI has a directional bias, only take trades in that direction
-  if (_preSession && _preSession.bias !== 'neutral') {
-    const aiBias = _preSession.bias === 'long' ? 'LONG' : 'SHORT'
-    if (direction !== aiBias) {
-      console.log(`[PaperEngine] AI filtered: ${direction} trade blocked, bias is ${_preSession.bias}`)
-      return
-    }
-  }
-  if (_orAssessment && _orAssessment.preferredDirection !== 'either' && _orAssessment.preferredDirection !== 'none') {
-    const orBias = _orAssessment.preferredDirection === 'long' ? 'LONG' : 'SHORT'
-    if (direction !== orBias) {
-      console.log(`[PaperEngine] AI OR filtered: ${direction} trade blocked, OR prefers ${_orAssessment.preferredDirection}`)
-      return
-    }
-  }
-
-  // Position sizing via risk calculator
-  const riskCalc = calculateRisk({
-    market: 'MNQ',
-    entry: entryPrice,
-    stop: stopPrice,
-    target: targetPrice,
-    contracts: _config.maxContracts,
-    accountSize: _settings.accountSize,
-    dailyLossLimit: _settings.dailyLossLimit,
-    currentDailyPnl: _dailyPnl,
-  })
-
-  if (riskCalc.violatesLimit) {
-    console.log(`[PaperEngine] Entry blocked — risk violation: ${riskCalc.violationMessage}`)
-    return
-  }
-
-  const contracts = Math.min(_config.maxContracts, Math.max(1, riskCalc.maxContractsAllowed))
-
-  // Order-flow gate: assess the breakout against live tape + DOM. Fail-open.
-  const ofRef = _lastPrice > 0 ? _lastPrice : entryPrice
-  const ofAssessment = assessBreakout(direction, ofRef)
-  _lastOrderflow = ofAssessment
-
-  if (_config.enableOrderflowVeto && ofAssessment.verdict === 'veto') {
-    if (!_ofVetoActive) {
-      _ofVetoActive = true
-      _ofVetoCount++
-      if (_ofVetoReasons.length < 10) {
-        _ofVetoReasons.push(`${direction} @ ${ofRef.toFixed(2)}: ${ofAssessment.reasons.join('; ')}`)
-      }
-      console.log(`[PaperEngine] Order-flow VETO: ${direction} — ${ofAssessment.reasons.join('; ')}`)
-      notify(`⛔ <b>ORDER-FLOW VETO</b>\n${direction} breakout blocked\n${ofAssessment.reasons.join('\n')}`)
-    }
-    return
-  }
-  _ofVetoActive = false
-
-  // Consult AI for final breakout confirmation (async)
   _entryLock = true
-  consultAIForBreakout(direction, entryPrice, stopPrice, targetPrice, contracts, ofAssessment)
+  const evaluatingDirection = direction
+  runSignalEvaluation(evaluatingDirection, price)
     .finally(() => { _entryLock = false })
-}
-
-async function consultAIForBreakout(
-  direction: 'LONG' | 'SHORT',
-  entryPrice: number,
-  stopPrice: number,
-  targetPrice: number,
-  mechanicalContracts: number,
-  orderflow: OrderflowAssessment | null = null,
-  patternGate: PatternGate | null = null,
-  volumeGate: VolumeGate | null = null,
-  breakBar: EngineCandle | null = null,
-): Promise<void> {
-  if (!_orHigh || !_orLow) return
-
-  const preSession = _preSession ?? {
-    shouldTrade: true, bias: 'neutral' as const, confidence: 50,
-    reasoning: 'No pre-session available', riskLevel: 'medium' as const,
-    adjustments: {}, keyFactors: [],
-  }
-  const orAssess = _orAssessment ?? {
-    quality: 'fair' as const, shouldTrade: true,
-    preferredDirection: 'either' as const, reasoning: 'No OR assessment available',
-  }
-
-  try {
-    _aiAnalysisInProgress = true
-    const decision = await analyzeBreakout(
-      direction, entryPrice, stopPrice, targetPrice,
-      _orHigh, _orLow, _orHigh - _orLow,
-      preSession, orAssess,
-      {
-        dailyPnl: _dailyPnl,
-        tradesCount: _tradesCount,
-        lossesCount: _lossesCount,
-        trailingDrawdownRemaining: _settings ? _settings.dailyLossLimit * 2 : 2000,
-      },
-      orderflow,
-      patternGate,
-      volumeGate,
-      breakBar,
-    )
-    _lastBreakout = decision
-    _aiAnalysisInProgress = false
-
-    if (decision.vetoTake) {
-      const reason = decision.vetoReason?.trim() || decision.reasoning
-      console.log(`[PaperEngine] AI VETOED breakout: ${reason}`)
-      notify(`⛔ <b>AI VETO</b>\n${direction} @ ${entryPrice.toFixed(2)}\n${reason}`)
-      return
-    }
-    if (!decision.enter) {
-      console.log(`[PaperEngine] AI SKIPPED breakout: ${decision.reasoning}`)
-      notify(`⏭️ <b>BREAKOUT SKIPPED</b>\n${direction} @ ${entryPrice.toFixed(2)}\n${decision.reasoning}`)
-      return
-    }
-
-    // AI picks contracts, but risk calculator and hard rules get final say
-    let contracts = Math.min(decision.contracts || mechanicalContracts, _config.maxContracts)
-    if (_lossesCount > 0) contracts = Math.min(contracts, 2)
-    const remainingBudget = _settings ? _settings.dailyLossLimit + _dailyPnl : 1000
-    const riskPerContract = Math.abs(entryPrice - stopPrice) * MNQ_POINT_VALUE
-    if (riskPerContract > 0) contracts = Math.min(contracts, Math.floor(remainingBudget / riskPerContract))
-    contracts = Math.max(1, contracts)
-    const useEntry = _lastPrice > 0 ? _lastPrice : entryPrice
-
-    if (!_openTrade && _enabled && _phase === 'monitoring') {
-      console.log(`[PaperEngine] AI APPROVED entry: ${decision.reasoning}`)
-      await openPosition(direction, useEntry, decision.adjustedStop ?? stopPrice, decision.adjustedTarget ?? targetPrice, contracts)
-    }
-  } catch (err) {
-    // Safety policy: AI failure = skip. No mechanical fallback. A failed AI
-    // call means we lost the brain — the one component that weighs context
-    // against the mechanical "everything passed" verdict. Entering anyway
-    // would be exactly the kind of "smart-on-paper, dumb-in-practice" trade
-    // the brain exists to filter.
-    console.error('[PaperEngine] AI breakout check failed — skipping per safety policy:', err)
-    _aiAnalysisInProgress = false
-    _lastBreakout = { enter: false, reasoning: 'AI unavailable — skip (no mechanical fallback)', confidence: 0, contracts: 0 }
-    notify(`⏭️ <b>BREAKOUT SKIPPED</b>\n${direction} @ ${entryPrice.toFixed(2)}\nAI analysis failed — skipping per safety policy`)
-  }
 }
 
 // ─── EXIT LOGIC ──────────────────────────────────────────────────────────────
@@ -950,6 +872,10 @@ function checkExit(price: number): void {
     : _openTrade.entryPrice - price
   _openTrade.livePnlPts = pnlPts
   _openTrade.livePnlDollars = pnlPts * MNQ_POINT_VALUE * _openTrade.contracts
+
+  // Sprint 1: track MFE / MAE on the open trade for opportunity-log resolution.
+  if (pnlPts > _openTradeMfePts) _openTradeMfePts = pnlPts
+  if (-pnlPts > _openTradeMaePts) _openTradeMaePts = -pnlPts
 
   // Breakeven stop: move stop to entry after 1x OR gain
   if (_config.enableBreakevenStop && _orHigh !== null && _orLow !== null) {
@@ -1149,6 +1075,22 @@ async function closePosition(exitPrice: number, reason: 'stop' | 'target' | 'ses
       },
     })
   })
+
+  // Sprint 1: resolve the linked SignalOpportunity row with realized outcome.
+  if (_currentOpportunityId && riskPts > 0) {
+    const label = status === 'WIN' ? 'win' : status === 'LOSS' ? 'loss' : 'be'
+    const opportunityId = _currentOpportunityId
+    const mfeR = _openTradeMfePts / riskPts
+    const maeR = _openTradeMaePts / riskPts
+    try {
+      await resolveOutcome({ opportunityId, label, outcomeR: resultR, mfeR, maeR })
+    } catch (err) {
+      console.error('[PaperEngine] resolveOutcome failed:', err)
+    }
+  }
+  _currentOpportunityId = null
+  _openTradeMfePts = 0
+  _openTradeMaePts = 0
 
   _openTrade = null
 }

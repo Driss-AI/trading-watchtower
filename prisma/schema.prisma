@@ -176,3 +176,112 @@ model SyncLog {
 
   @@map("sync_logs")
 }
+
+// ─── SIGNAL OPPORTUNITY ──────────────────────────────────────────────────────
+// One row per OR-buffer crossing evaluated by the signal engine, taken or
+// skipped. The data asset that makes AI-vs-mechanical attribution, would-have
+// outcomes, and learning queries possible.
+
+model SignalOpportunity {
+  id        String   @id @default(cuid())
+
+  // Identity
+  date      String   // YYYY-MM-DD (NY date)
+  barTime   DateTime // close-of-bar timestamp (UTC)
+  market    String   @default("MNQ")
+  direction String   // LONG / SHORT
+
+  // OR + entry math
+  orHigh        Float
+  orLow         Float
+  orSize        Float
+  refPrice      Float
+  entry         Float
+  stop          Float
+  target        Float
+  riskPts       Float
+  rewardPts     Float
+  rrRatio       Float
+
+  // Structural context (nullable — filled when available)
+  vwap          Float?
+  vwapDistance  Float?
+  priorDayHigh  Float?
+  priorDayLow   Float?
+  overnightHigh Float?
+  overnightLow  Float?
+
+  // Pattern gate
+  patternName     String?
+  patternVerdict  String?  // confirm | caution | neutral | veto
+  patternSignal   String?  // bullish | bearish | neutral | caution
+  patternStrength Int?
+  orbContext      String?
+
+  // Volume gate
+  volumeRatio     Float?
+  volumeVerdict   String?  // confirm | caution | neutral | veto
+  breakVolume     Int?
+  avgVolume       Float?
+
+  // Order-flow gate
+  orderflowVerdict   String?  // confirm | caution | veto
+  orderflowAvailable Boolean  @default(false)
+  cumDeltaAtBreak    Int?
+  shortDeltaAtBreak  Int?
+  deltaDivergence    String?  // none | mild | strong
+  wallRisk           String?  // none | moderate | high
+
+  // Raw gate verdicts (for replay / future re-analysis)
+  gateVerdictsJson Json
+
+  // Freshness flags (audit + replay)
+  candleFreshness    String   // fresh | stale | missing
+  orderflowFreshness String
+  macroFreshness     String
+  accountFreshness   String
+
+  // Mechanical layer
+  mechanicalVerdict   String   // take | caution | skip
+  mechanicalContracts Int
+  hardCap             Int
+
+  // AI layer
+  aiStatus       String?   // ok | unavailable | skipped
+  aiModel        String?
+  aiEnter        Boolean?
+  aiConfidence   Int?
+  aiContracts    Int?
+  aiVetoTake     Boolean?
+  aiVetoReason   String?
+  aiReasoning    String?
+
+  // Final decision
+  finalDecision   String    // take | skip
+  finalContracts  Int       @default(0)
+  skipReason      String?
+  skipSource      String?   // mechanical | ai-veto | ai-uncertain | ai-unavailable
+  rationale       String?
+
+  // Linked trade (when taken)
+  paperTradeId    String?   @unique
+
+  // Outcome (resolved later — taken trade closes OR skipped trade window expires)
+  outcomeStatus   String    @default("pending")  // pending | resolved
+  outcomeLabel    String?   // win | loss | be | inconclusive
+  outcomeR        Float?
+  mfeR            Float?
+  maeR            Float?
+  wouldEntry      Float?    // for skipped trades
+  wouldStop       Float?
+  wouldTarget     Float?
+  resolvedAt      DateTime?
+
+  source          String    @default("paper")  // paper | backtest | live-signal
+  createdAt       DateTime  @default(now())
+
+  @@index([date, market])
+  @@index([finalDecision, outcomeLabel])
+  @@index([source, date])
+  @@map("signal_opportunities")
+}
