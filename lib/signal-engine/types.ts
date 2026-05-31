@@ -183,6 +183,16 @@ export interface AIReview {
 
 export type FinalDecision = 'take' | 'skip'
 
+/** Lifecycle of the user's real manual action against a signal. Stored on the
+ *  SignalOpportunity row and set via recordManualExecution(). */
+export type ManualExecutionStatus =
+  | 'NOT_TAKEN' // signal fired, user has not acted (or window still open)
+  | 'TAKEN'     // user placed the order
+  | 'SKIPPED'   // user deliberately passed
+  | 'MISSED'    // user intended to take it but didn't in time
+  | 'CANCELLED' // user pulled the order after placing
+  | 'EXPIRED'   // validity window elapsed with no action
+
 export type SkipSource =
   | 'mechanical' // gates or risk math killed it
   | 'ai-veto' // AI explicitly vetoed
@@ -213,6 +223,15 @@ export interface SignalDecision {
   riskPts: number
   rewardPts: number
   rrRatio: number
+
+  // Manual-execution validity (computed pure from barTime + geometry in finalize)
+  priceAtSignal: number
+  signalExpiresAt: number // ms epoch
+  validForSeconds: number
+  maxChaseDistance: number // points the user may chase past entry
+  cancelIfBeyond: number // price beyond which the signal is void
+  entryBandLow: number | null // CAUTION pullback band (null for a plain TAKE)
+  entryBandHigh: number | null
 
   // Mechanical breakdown
   mechanicalVerdict: MechanicalDecision

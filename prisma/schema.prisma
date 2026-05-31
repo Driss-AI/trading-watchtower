@@ -266,6 +266,26 @@ model SignalOpportunity {
   // Linked trade (when taken)
   paperTradeId    String?   @unique
 
+  // Manual-execution validity (computed at signal time — a hand-placed order
+  // needs a shelf life). See lib/signal-engine/finalize.ts.
+  priceAtSignal      Float?
+  signalExpiresAt    DateTime?
+  validForSeconds    Int?
+  maxChaseDistance   Float?
+  cancelIfBeyond     Float?
+  entryBandLow       Float?
+  entryBandHigh      Float?
+
+  // Manual execution tracking (filled when the user logs their real action)
+  manualExecutionStatus String  @default("NOT_TAKEN") // NOT_TAKEN | TAKEN | SKIPPED | MISSED | CANCELLED | EXPIRED
+  actualEntry           Float?
+  actualContracts       Int?
+  priceAtExecution      Float?
+  executionDelaySeconds Int?
+  manualOverrideReason  String?
+  expiredReason         String?
+  executedAt            DateTime?
+
   // Outcome (resolved later — taken trade closes OR skipped trade window expires)
   outcomeStatus   String    @default("pending")  // pending | resolved
   outcomeLabel    String?   // win | loss | be | inconclusive

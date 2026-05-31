@@ -280,6 +280,67 @@ describe('finalize — AI authority matrix', () => {
   })
 })
 
+// ─── MANUAL-EXECUTION VALIDITY ───────────────────────────────────────────────
+
+describe('finalize — manual-execution validity', () => {
+  it('a plain TAKE is valid for 90s, anchored to barTime (pure, no clock)', () => {
+    const s = makeState()
+    const m = mechanicalDecide(s)
+    const d = finalize(s, m, aiApprove())
+    expect(d.finalDecision).toBe('take')
+    expect(d.validForSeconds).toBe(90)
+    expect(d.signalExpiresAt).toBe(s.barTime + 90_000)
+    expect(d.priceAtSignal).toBe(s.refPrice)
+  })
+
+  it('LONG max-chase voids the signal 5pts above entry', () => {
+    const s = makeState()
+    const m = mechanicalDecide(s)
+    const d = finalize(s, m, aiApprove())
+    expect(d.maxChaseDistance).toBe(5)
+    expect(d.cancelIfBeyond).toBe(d.entry + 5)
+  })
+
+  it('SHORT max-chase voids the signal 5pts below entry', () => {
+    // direction flips the chase sign; assemble computes it regardless of verdict
+    const s = makeState({ direction: 'SHORT', candleFreshness: 'stale' })
+    const m = mechanicalDecide(s)
+    const d = finalize(s, m, aiApprove())
+    expect(d.cancelIfBeyond).toBe(d.entry - 5)
+  })
+
+  it('a plain TAKE has no entry band (chase rule applies, not a pullback zone)', () => {
+    const s = makeState()
+    const d = finalize(s, mechanicalDecide(s), aiApprove())
+    expect(d.entryBandLow).toBeNull()
+    expect(d.entryBandHigh).toBeNull()
+  })
+
+  it('a CAUTION take expires faster (45s) and carries a mechanical pullback band', () => {
+    const s = makeState({
+      orderflowFreshness: 'stale',
+      orderflow: makeOrderflow({ available: false, verdict: 'caution' }),
+    })
+    const m = mechanicalDecide(s)
+    expect(m.decision).toBe('caution')
+    const d = finalize(s, m, aiApprove({ contracts: 2 }))
+    expect(d.finalDecision).toBe('take')
+    expect(d.validForSeconds).toBe(45)
+    expect(d.signalExpiresAt).toBe(s.barTime + 45_000)
+    // band = [broken OR boundary .. break close] for a LONG
+    expect(d.entryBandLow).toBe(Math.min(s.orHigh, d.entry))
+    expect(d.entryBandHigh).toBe(Math.max(s.orHigh, d.entry))
+  })
+
+  it('validity fields are present even on a skip (the card/log always has them)', () => {
+    const s = makeState({ candleFreshness: 'missing' })
+    const d = finalize(s, mechanicalDecide(s), aiApprove())
+    expect(d.finalDecision).toBe('skip')
+    expect(d.signalExpiresAt).toBe(s.barTime + 90_000)
+    expect(Number.isFinite(d.cancelIfBeyond)).toBe(true)
+  })
+})
+
 // ─── ADJUSTED STOP/TARGET SANITIZATION ───────────────────────────────────────
 
 describe('finalize — adjusted stop/target sanitization', () => {

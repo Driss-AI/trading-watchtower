@@ -49,6 +49,14 @@ function renderTake(d: SignalDecision, ctx: TradeCardContext): string {
   lines.push(`<b>Why take it:</b> ${d.rationale}`)
   lines.push(`<b>Invalidation:</b> a close back inside OR at ${invalidationPrice(d)}, or a candle close past your stop.`)
   lines.push('')
+  lines.push(`<b>⏱ Valid until:</b> ${formatClock(d.signalExpiresAt)} (${d.validForSeconds}s)`)
+  if (d.entryBandLow != null && d.entryBandHigh != null) {
+    lines.push(`<b>Entry band:</b> ${d.entryBandLow.toFixed(2)}–${d.entryBandHigh.toFixed(2)} — CAUTION: take only on a pullback into this zone, do NOT chase.`)
+  } else {
+    lines.push(`<b>Max chase:</b> ${d.maxChaseDistance.toFixed(1)} pts — cancel if price moves beyond ${d.cancelIfBeyond.toFixed(2)}.`)
+  }
+  lines.push(`<b>Cancel if:</b> price closes back inside OR, or the window above expires.`)
+  lines.push('')
   lines.push(`<b>Manual action:</b> work the order at ${d.entry.toFixed(2)}, hard stop ${d.stop.toFixed(2)}, target ${d.target.toFixed(2)}, ${d.finalContracts} MNQ.`)
   return lines.join('\n')
 }
@@ -143,6 +151,18 @@ function formatTime(barTime: number): string {
     return d.toLocaleString('en-US', {
       timeZone: 'America/New_York',
       hour: '2-digit', minute: '2-digit', hour12: false,
+    }) + ' ET'
+  } catch {
+    return 'unknown time'
+  }
+}
+
+// Like formatTime but with seconds — the validity window is second-sensitive.
+function formatClock(ms: number): string {
+  try {
+    return new Date(ms).toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
     }) + ' ET'
   } catch {
     return 'unknown time'

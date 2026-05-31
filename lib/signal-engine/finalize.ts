@@ -32,6 +32,12 @@ import type {
 
 const CAUTION_CAP = 2 // contracts cap when mechanical verdict is CAUTION
 
+// ── Manual-execution validity. A signal the user places by hand needs a shelf
+// life. Anchored to barTime so finalize stays pure (no clock reads). Tunable. ──
+const TAKE_VALID_SECONDS = 90    // a plain TAKE is actionable for this long after bar close
+const CAUTION_VALID_SECONDS = 45 // a CAUTION pullback window expires faster
+const MAX_CHASE_POINTS = 5       // points past entry the user may chase before the signal is void
+
 export function finalize(
   state: SignalState,
   mechanical: MechanicalVerdict,
@@ -176,6 +182,26 @@ function assemble(x: AssembleInput): SignalDecision {
   const rewardPts = Math.abs(x.target - x.entry)
   const rrRatio = riskPts > 0 ? rewardPts / riskPts : 0
 
+  // ── Manual-execution validity ──
+  const validForSeconds = x.mechanical.decision === 'caution'
+    ? CAUTION_VALID_SECONDS
+    : TAKE_VALID_SECONDS
+  const signalExpiresAt = x.state.barTime + validForSeconds * 1000
+  const maxChaseDistance = MAX_CHASE_POINTS
+  const cancelIfBeyond = x.state.direction === 'LONG'
+    ? x.entry + maxChaseDistance
+    : x.entry - maxChaseDistance
+
+  // CAUTION takes are valid ONLY on a pullback into [broken OR boundary .. break
+  // close] — a mechanical band, not "use your judgement". null for a plain TAKE.
+  let entryBandLow: number | null = null
+  let entryBandHigh: number | null = null
+  if (x.finalDecision === 'take' && x.mechanical.decision === 'caution') {
+    const orBoundary = x.state.direction === 'LONG' ? x.state.orHigh : x.state.orLow
+    entryBandLow = Math.min(orBoundary, x.entry)
+    entryBandHigh = Math.max(orBoundary, x.entry)
+  }
+
   return {
     date: x.state.date,
     barTime: x.state.barTime,
@@ -196,6 +222,14 @@ function assemble(x: AssembleInput): SignalDecision {
     riskPts,
     rewardPts,
     rrRatio,
+
+    priceAtSignal: x.state.refPrice,
+    signalExpiresAt,
+    validForSeconds,
+    maxChaseDistance,
+    cancelIfBeyond,
+    entryBandLow,
+    entryBandHigh,
 
     mechanicalVerdict: x.mechanical.decision,
     mechanicalContracts: x.mechanical.mechanicalContracts,

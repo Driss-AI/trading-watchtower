@@ -34,6 +34,10 @@ function makeDecision(over: Partial<SignalDecision> = {}): SignalDecision {
     skipReason: null, skipSource: null,
     entry: 21500, stop: 21460, target: 21560,
     riskPts: 40, rewardPts: 60, rrRatio: 1.5,
+    priceAtSignal: 21500,
+    signalExpiresAt: Date.UTC(2026, 4, 30, 14, 47) + 90_000,
+    validForSeconds: 90, maxChaseDistance: 5, cancelIfBeyond: 21505,
+    entryBandLow: null, entryBandHigh: null,
     mechanicalVerdict: 'take', mechanicalContracts: 3, hardCap: 5,
     pattern, volume, orderflow, ai,
     candleFreshness: 'fresh', orderflowFreshness: 'fresh',
@@ -64,6 +68,26 @@ describe('renderTradeCard — TAKE', () => {
       mechanicalVerdict: 'caution', finalContracts: 2,
     }), CTX)
     expect(card).toContain('CAUTION downsize')
+  })
+
+  it('surfaces signal validity: valid-until window, max chase, and cancel rule', () => {
+    const card = renderTradeCard(makeDecision(), CTX)
+    expect(card).toContain('Valid until:')
+    expect(card).toContain('Max chase:')
+    expect(card).toContain('5.0 pts')
+    expect(card).toContain('21505.00') // cancelIfBeyond
+    expect(card).toContain('Cancel if:')
+  })
+
+  it('shows the CAUTION entry band (pullback zone, no chase) instead of max chase', () => {
+    const card = renderTradeCard(makeDecision({
+      mechanicalVerdict: 'caution', finalContracts: 2,
+      validForSeconds: 45, entryBandLow: 21490, entryBandHigh: 21500,
+    }), CTX)
+    expect(card).toContain('Entry band:')
+    expect(card).toContain('21490.00–21500.00')
+    expect(card).toContain('do NOT chase')
+    expect(card).not.toContain('Max chase:')
   })
 })
 

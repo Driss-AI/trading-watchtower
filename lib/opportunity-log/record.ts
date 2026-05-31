@@ -5,7 +5,7 @@
 // resolveOutcome) but the initial write captures the full decision context.
 
 import { prisma } from '../prisma'
-import type { SignalState, SignalDecision } from '../signal-engine/types'
+import type { SignalState, SignalDecision, ManualExecutionStatus } from '../signal-engine/types'
 
 export interface WriteSignalOpportunityInput {
   state: SignalState
@@ -42,6 +42,14 @@ export async function writeSignalOpportunity(
       riskPts: decision.riskPts,
       rewardPts: decision.rewardPts,
       rrRatio: decision.rrRatio,
+
+      priceAtSignal: decision.priceAtSignal,
+      signalExpiresAt: new Date(decision.signalExpiresAt),
+      validForSeconds: decision.validForSeconds,
+      maxChaseDistance: decision.maxChaseDistance,
+      cancelIfBeyond: decision.cancelIfBeyond,
+      entryBandLow: decision.entryBandLow,
+      entryBandHigh: decision.entryBandHigh,
 
       vwap: state.structural.vwap,
       vwapDistance: state.structural.vwapDistance,
@@ -114,5 +122,45 @@ export async function linkPaperTrade(opportunityId: string, paperTradeId: string
   await prisma.signalOpportunity.update({
     where: { id: opportunityId },
     data: { paperTradeId },
+  })
+}
+
+export interface RecordManualExecutionInput {
+  opportunityId: string
+  status: ManualExecutionStatus
+  actualEntry?: number | null
+  actualContracts?: number | null
+  priceAtExecution?: number | null
+  manualOverrideReason?: string | null
+  expiredReason?: string | null
+}
+
+/** Record the user's real manual action against a signal. Computes execution
+ *  delay from the break-bar time when TAKEN. Last write wins. */
+export async function recordManualExecution(input: RecordManualExecutionInput): Promise<void> {
+  const row = await prisma.signalOpportunity.findUnique({
+    where: { id: input.opportunityId },
+    select: { barTime: true },
+  })
+  if (!row) throw new Error(`SignalOpportunity ${input.opportunityId} not found`)
+
+  const taken = input.status === 'TAKEN'
+  const executedAt = taken ? new Date() : null
+  const executionDelaySeconds = taken
+    ? Math.max(0, Math.round((Date.now() - row.barTime.getTime()) / 1000))
+    : null
+
+  await prisma.signalOpportunity.update({
+    where: { id: input.opportunityId },
+    data: {
+      manualExecutionStatus: input.status,
+      actualEntry: input.actualEntry ?? null,
+      actualContracts: input.actualContracts ?? null,
+      priceAtExecution: input.priceAtExecution ?? null,
+      manualOverrideReason: input.manualOverrideReason ?? null,
+      expiredReason: input.expiredReason ?? null,
+      executionDelaySeconds,
+      executedAt,
+    },
   })
 }
