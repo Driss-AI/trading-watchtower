@@ -9,6 +9,7 @@ import LiveStats from '@/components/LiveStats'
 import ORBAlerts from '@/components/ORBAlerts'
 import CandleReader from '@/components/CandleReader'
 import PaperTrading from '@/components/PaperTrading'
+import ManualExecutionLog from '@/components/ManualExecutionLog'
 
 interface Session {
   orHigh?: number; orLow?: number
@@ -55,6 +56,9 @@ export default function Cockpit() {
 
       {/* ── Primary: cockpit ── */}
       <PaperTrading />
+
+      {/* ── Manual execution log (system decides · you execute · system audits) ── */}
+      <ManualExecutionLog />
 
       {/* ── Live breakout monitor ── */}
       <ORBAlerts />
