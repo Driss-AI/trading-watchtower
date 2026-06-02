@@ -11,9 +11,14 @@
 import { getMinuteBars, getActiveMNQContractId, getActiveNQContractId } from '../topstepx'
 import type { BacktestBar, SessionBars } from './types'
 
-// 09:25 → 11:05 ET, expressed as minutes-of-day, with a little head/tail buffer.
-const WINDOW_START_ET = 9 * 60 + 25
-const WINDOW_END_ET = 11 * 60 + 5
+// 09:25 ET → 16:00 ET (RTH close). We must load the FULL session, not just the
+// morning: breaks are only armed in the trade window (≤11:00 ET) but a taken
+// trade needs the rest of the day to actually reach its target or stop. A
+// morning-only window force-exits every open trade ~11:00, which strangles the
+// target logic and makes the target multiple inert. Start has a small pre-OR
+// buffer; end is the regular-session close.
+const WINDOW_START_ET = 9 * 60 + 25 // 09:25 ET
+const WINDOW_END_ET = 16 * 60       // 16:00 ET (RTH close)
 
 const _cache = new Map<string, SessionBars>() // key: `${market}:${date}`
 
@@ -69,7 +74,8 @@ export async function loadSessionDay(market: string, dateStr: string): Promise<S
   const from = etDateTimeToUtc(dateStr, WINDOW_START_ET)
   const to = etDateTimeToUtc(dateStr, WINDOW_END_ET)
 
-  const raw = await getMinuteBars(contractId, from, to, false, 150)
+  // ~395 one-minute bars across 09:25–16:00 ET; 450 leaves headroom.
+  const raw = await getMinuteBars(contractId, from, to, false, 450)
   if (!raw.length) return null
 
   const bars: BacktestBar[] = raw
