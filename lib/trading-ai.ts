@@ -388,14 +388,15 @@ Cite the pattern, volume ratio, and delta in your reasoning so the decision is a
     }
   } catch (err) {
     console.error('[TradingAI] Breakout analysis failed:', err)
+    // Never fall back to a tradeable default. Re-throw so aiReview() converts
+    // this into an ai-unavailable review (enter=false, contracts=0). AI failure
+    // must never become an entry.
+    throw err instanceof Error ? err : new Error('AI breakout analysis failed')
   }
 
-  return {
-    enter: preSession.shouldTrade && orAssessment.shouldTrade,
-    reasoning: 'AI analysis unavailable — using mechanical rules',
-    confidence: 50,
-    contracts: 1,
-  }
+  // Forced tool_choice but no tool block came back — anomalous. Treat as
+  // unavailable rather than fabricating an entry decision.
+  throw new Error('AI breakout analysis unavailable — no decision produced')
 }
 
 // ─── TOOL DEFINITIONS ───────────────────────────────────────────────────────

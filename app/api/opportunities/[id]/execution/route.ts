@@ -38,6 +38,9 @@ export async function POST(
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error(err)
+    if (err instanceof Error && err.message.startsWith('Validation:')) {
+      return NextResponse.json({ error: err.message.replace(/^Validation:\s*/, '') }, { status: 400 })
+    }
     const msg = err instanceof Error && err.message.includes('not found') ? err.message : 'Failed to record execution'
     const code = msg.includes('not found') ? 404 : 500
     return NextResponse.json({ error: msg }, { status: code })

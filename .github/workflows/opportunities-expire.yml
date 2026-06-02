@@ -1,0 +1,20 @@
+name: Expire Stale Signals
+
+# Sweeps executable (finalDecision=take) opportunities the user never logged and
+# flips them NOT_TAKEN -> EXPIRED once their validity window has elapsed, so the
+# scoreboard's execution-quality stats aren't skewed by perpetual NOT_TAKEN rows.
+# The update is idempotent, so over-running is harmless.
+on:
+  schedule:
+    # Every 30 min during the broad pre-open -> post-session window (UTC), Mon-Fri.
+    # Covers the ET trade window across both DST regimes.
+    - cron: '*/30 13-17 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  expire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sweep expired signals
+        run: |
+          curl -s -X POST -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" "${{ secrets.WATCHTOWER_URL }}/api/opportunities/expire"

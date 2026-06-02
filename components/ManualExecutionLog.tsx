@@ -82,11 +82,27 @@ export default function ManualExecutionLog() {
     }
     setBusy(o.id)
     try {
-      await fetch(`/api/opportunities/${o.id}/execution`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, actualEntry, actualContracts, priceAtExecution: actualEntry }),
-      })
+      const post = (manualOverrideReason?: string) =>
+        fetch(`/api/opportunities/${o.id}/execution`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, actualEntry, actualContracts, priceAtExecution: actualEntry, manualOverrideReason }),
+        })
+
+      let res = await post()
+      // 400 = backend discipline check (over-chase / over-size). Let the user
+      // justify it with an override reason and retry, rather than failing silent.
+      if (res.status === 400) {
+        const { error } = await res.json().catch(() => ({ error: 'Rejected' }))
+        const reason = prompt(`${error}\n\nLog anyway? Enter an override reason (cancel to abort):`)
+        if (reason == null || !reason.trim()) return
+        res = await post(reason.trim())
+      }
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        alert(`Could not log: ${error}`)
+        return
+      }
       await load()
     } finally {
       setBusy(null)

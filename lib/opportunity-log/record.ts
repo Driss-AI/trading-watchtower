@@ -140,11 +140,52 @@ export interface RecordManualExecutionInput {
 export async function recordManualExecution(input: RecordManualExecutionInput): Promise<void> {
   const row = await prisma.signalOpportunity.findUnique({
     where: { id: input.opportunityId },
-    select: { barTime: true },
+    select: {
+      barTime: true,
+      direction: true,
+      entry: true,
+      finalContracts: true,
+      maxChaseDistance: true,
+    },
   })
   if (!row) throw new Error(`SignalOpportunity ${input.opportunityId} not found`)
 
   const taken = input.status === 'TAKEN'
+
+  // ── Server-side discipline enforcement (backend mirror of the cockpit UI) ──
+  // Reject garbage TAKEN rows that would pollute the scoreboard. Errors are
+  // prefixed "Validation:" so the API maps them to HTTP 400.
+  // NOTE: we deliberately do NOT enforce signal-expiry here. Validity is a 90s
+  // window but executions are logged after the fact, so signalExpiresAt < now
+  // is true for almost every honestly-taken trade — enforcing it would demand
+  // an override reason on every legitimate log. Over-chase (price, not time)
+  // captures the discipline that actually matters.
+  if (taken) {
+    const entry = input.actualEntry
+    const contracts = input.actualContracts
+    const hasOverride = !!input.manualOverrideReason?.trim()
+
+    if (entry == null || !Number.isFinite(entry)) {
+      throw new Error('Validation: TAKEN requires actualEntry')
+    }
+    if (contracts == null || contracts < 1) {
+      throw new Error('Validation: TAKEN requires actualContracts >= 1')
+    }
+    if (contracts > row.finalContracts && !hasOverride) {
+      throw new Error(
+        `Validation: took ${contracts} contracts but signal allowed ${row.finalContracts} — manualOverrideReason required`,
+      )
+    }
+    if (row.maxChaseDistance != null) {
+      const chase = row.direction === 'long' ? entry - row.entry : row.entry - entry
+      if (chase > row.maxChaseDistance && !hasOverride) {
+        throw new Error(
+          `Validation: entry chased ${chase.toFixed(2)}pt beyond signal (max ${row.maxChaseDistance}) — manualOverrideReason required`,
+        )
+      }
+    }
+  }
+
   const executedAt = taken ? new Date() : null
   const executionDelaySeconds = taken
     ? Math.max(0, Math.round((Date.now() - row.barTime.getTime()) / 1000))
