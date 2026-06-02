@@ -29,7 +29,7 @@ interface VolumeSignal {
 
 // ─── VOLUME HELPERS ───────────────────────────────────────────────────────────
 // The SSE stream sends cumulative session volume on each tick.
-// We bucket ticks by minute during the OR window (9:30–10:00 ET),
+// We bucket ticks by minute during the OR window (9:30–9:45 ET),
 // compute per-minute deltas, and use the 20-period SMA as the baseline.
 // On breakout the first tick's volume delta vs the last OR minute avg = multiple.
 
@@ -116,8 +116,8 @@ function analyseBars(
     (a, b) => new Date(a.t).getTime() - new Date(b.t).getTime()
   )
 
-  const orBars    = sorted.filter(b => { const { h, m } = getBarETHour(b.t); return h === 9 && m >= 30 })
-  const tradeBars = sorted.filter(b => getBarETHour(b.t).h >= 10)
+  const orBars    = sorted.filter(b => { const { h, m } = getBarETHour(b.t); return h === 9 && m >= 30 && m < 45 })
+  const tradeBars = sorted.filter(b => { const { h, m } = getBarETHour(b.t); return h >= 10 || (h === 9 && m >= 45) })
 
   const breakoutBar = tradeBars[0] ?? sorted[sorted.length - 1]
   const followBar   = tradeBars[1] ?? null
@@ -235,7 +235,7 @@ export default function ORBAlerts() {
         orHighRef.current = local.high
         orLowRef.current  = local.low
         const ny = getNYTime()
-        if (ny.totalMin >= 600) {
+        if (ny.totalMin >= 585) { // 9:45 ET — OR has locked
           setOrLocked(true)
           saveORtoDB(local.high, local.low)
         }
@@ -273,7 +273,7 @@ export default function ORBAlerts() {
     function updatePhase() {
       const ny = getNYTime()
       if      (ny.totalMin < 570) setPhase('pre')
-      else if (ny.totalMin < 600) setPhase('forming')
+      else if (ny.totalMin < 585) setPhase('forming') // 9:45 ET — 15-min OR locks
       else if (ny.totalMin < 690) setPhase('monitoring') // 11:30 ET — matches paper-engine sessionEndMinute
       else                         setPhase('closed')
     }
@@ -282,7 +282,7 @@ export default function ORBAlerts() {
     return () => clearInterval(t)
   }, [])
 
-  // ─── LOCK OR at 10:00 ────────────────────────────────────────────────────
+  // ─── LOCK OR at 9:45 ─────────────────────────────────────────────────────
   useEffect(() => {
     if (phase === 'monitoring' && !orLocked && orHighRef.current && orLowRef.current) {
       setOrHigh(orHighRef.current)
@@ -315,9 +315,9 @@ export default function ORBAlerts() {
           setLivePrice(price)
           const ny = getNYTime()
 
-          // ── Volume tracking during OR formation window (9:30–10:00 ET) ──────
+          // ── Volume tracking during OR formation window (9:30–9:45 ET) ───────
           // Accumulate per-minute volume deltas so we can compute avg later.
-          if (ny.totalMin >= 570 && ny.totalMin < 600 && cumVol != null && cumVol > 0) {
+          if (ny.totalMin >= 570 && ny.totalMin < 585 && cumVol != null && cumVol > 0) {
             const minuteKey = getMinuteKey(ny.h, ny.m)
             if (lastVolRef.current !== null && cumVol > lastVolRef.current) {
               const delta = cumVol - lastVolRef.current
@@ -335,15 +335,15 @@ export default function ORBAlerts() {
             lastVolRef.current = cumVol
           }
 
-          // Flush the last minute when OR locks at 10:00
-          if (ny.totalMin === 600 && curMinuteKeyRef.current !== null && curMinuteVolRef.current > 0) {
+          // Flush the last minute when OR locks at 9:45
+          if (ny.totalMin === 585 && curMinuteKeyRef.current !== null && curMinuteVolRef.current > 0) {
             orMinuteDeltasRef.current.set(curMinuteKeyRef.current, curMinuteVolRef.current)
             curMinuteKeyRef.current = null
             curMinuteVolRef.current = 0
           }
 
           // ── OR high/low tracking ───────────────────────────────────────────
-          if (ny.totalMin >= 570 && ny.totalMin < 600) {
+          if (ny.totalMin >= 570 && ny.totalMin < 585) {
             let changed = false
             if (orHighRef.current === null || price > orHighRef.current) {
               orHighRef.current = price; setOrHigh(price); changed = true
