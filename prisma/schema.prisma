@@ -305,3 +305,43 @@ model SignalOpportunity {
   @@index([source, date])
   @@map("signal_opportunities")
 }
+
+// ─── BACKTEST RUN ────────────────────────────────────────────────────────────
+// Summary of one historical replay (degraded gate set — no order flow, AI
+// skipped). The per-signal detail lives in SignalOpportunity rows written with
+// source:'backtest'; this row is the headline + the IS/OOS split.
+
+model BacktestRun {
+  id              String   @id @default(cuid())
+  name            String
+  market          String   @default("MNQ")
+  startDate       String   // YYYY-MM-DD
+  endDate         String
+  strategyVersion String   @default("degraded-v1")
+  settingsJson    Json
+
+  // Aggregate (all sessions)
+  totalSessions   Int
+  totalSignals    Int
+  totalTrades     Int
+  wins            Int
+  losses          Int
+  winRate         Float
+  totalR          Float
+  expectancyR     Float
+  profitFactor    Float
+  maxDrawdownR    Float
+  maxLosingStreak Int
+
+  // Out-of-sample split
+  splitDate       String?
+  oosExpectancyR  Float?
+  oosTrades       Int?
+
+  metricsJson     Json     // full SplitMetrics for the report view
+
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("backtest_runs")
+}
