@@ -2,41 +2,116 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+/* ════════════════════════════════════════════════════════════════════════
+   WATCHTOWER — Trader's Command Center HUD
+   Single typeface (JetBrains Mono), near-black canvas, semantic color only.
+   Every component reads these vars, so the theme swaps wholesale.
+   ════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --bg: #050b18;
-  --surface: #080f22;
-  --card: #0b1530;
-  --card-hover: #0f1c3a;
-  --border: #162040;
-  --border-bright: #1e2f56;
+  /* ── Canvas + surfaces ── */
+  --bg: #060607;            /* near-black canvas        */
+  --bg-secondary: #0c0c0e;  /* secondary panel fill     */
+  --surface: #0c0c0e;       /* s1 — inputs / chips      */
+  --card: #111114;          /* s2 — panel surfaces      */
+  --card-hover: #17171b;
+  --border: #1d1d22;
+  --border-bright: #2c2c34;
 
-  --text-primary: #dce8ff;
-  --text-secondary: #6b85b8;
-  --text-dim: #3a5280;
+  /* ── Text (t0 → t3) ── */
+  --text-primary: #f8f8f8;
+  --text-secondary: rgba(248, 248, 248, 0.56);
+  --text-dim: rgba(248, 248, 248, 0.34);
 
-  --green: #00e676;
-  --green-dim: #00b34e;
-  --green-bg: #001a0d;
-  --green-border: #003d1a;
+  /* ── Brand accent — lime ── */
+  --lime: #c8ff00;
+  --lime-dim: #a6d400;
+  --lime-bg: rgba(200, 255, 0, 0.10);
+  --lime-border: rgba(200, 255, 0, 0.32);
 
-  --red: #ff3d3d;
-  --red-dim: #cc2020;
-  --red-bg: #1a0505;
-  --red-border: #3d0a0a;
+  /* ── Semantic (legacy names kept; retuned to spec) ── */
+  --green: #00e87a;         /* pass  */
+  --green-dim: #00b35e;
+  --green-bg: rgba(0, 232, 122, 0.09);
+  --green-border: rgba(0, 232, 122, 0.28);
 
-  --yellow: #ffb300;
-  --yellow-dim: #cc8800;
-  --yellow-bg: #1a1000;
-  --yellow-border: #3d2800;
+  --red: #ff3b3b;           /* fail  */
+  --red-dim: #cc2424;
+  --red-bg: rgba(255, 59, 59, 0.09);
+  --red-border: rgba(255, 59, 59, 0.28);
 
-  --blue: #2979ff;
-  --blue-bg: #050d2a;
-  --blue-border: #0d1f5c;
+  --yellow: #f5a623;        /* amber / watch */
+  --yellow-dim: #c7841a;
+  --yellow-bg: rgba(245, 166, 35, 0.09);
+  --yellow-border: rgba(245, 166, 35, 0.28);
 
-  --font-mono: 'IBM Plex Mono', monospace;
-  --font-sans: 'DM Sans', sans-serif;
+  --blue: #4b9eff;          /* high tier */
+  --blue-dim: #2f7fe0;
+  --blue-bg: rgba(75, 158, 255, 0.09);
+  --blue-border: rgba(75, 158, 255, 0.28);
+
+  /* ── Extra semantic accents ── */
+  --cyan: #00d4e8;          /* brain */
+  --pink: #ff5fa0;          /* speculative */
+  --pass: var(--green);
+  --fail: var(--red);
+  --amber: var(--yellow);
+
+  /* ── Type ── */
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+  --font-sans: var(--font-mono);
+
+  /* ── Motif intensities (theme-aware) ── */
+  --scanline-alpha: 0.05;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — same vars, retuned for paper-white
+   ════════════════════════════════════════════════════════════════════════ */
+[data-theme='light'] {
+  --bg: #f4f5f7;
+  --bg-secondary: #eceef2;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --card-hover: #f0f1f4;
+  --border: #e2e4e9;
+  --border-bright: #cfd3da;
+
+  --text-primary: #14161a;
+  --text-secondary: rgba(20, 22, 26, 0.62);
+  --text-dim: rgba(20, 22, 26, 0.42);
+
+  --lime: #3a7d00;
+  --lime-dim: #2f6600;
+  --lime-bg: rgba(58, 125, 0, 0.10);
+  --lime-border: rgba(58, 125, 0, 0.30);
+
+  --green: #00a859;
+  --green-dim: #008045;
+  --green-bg: rgba(0, 168, 89, 0.10);
+  --green-border: rgba(0, 168, 89, 0.30);
+
+  --red: #e01e1e;
+  --red-dim: #b01414;
+  --red-bg: rgba(224, 30, 30, 0.09);
+  --red-border: rgba(224, 30, 30, 0.30);
+
+  --yellow: #b9760a;
+  --yellow-dim: #94600a;
+  --yellow-bg: rgba(185, 118, 10, 0.10);
+  --yellow-border: rgba(185, 118, 10, 0.30);
+
+  --blue: #2f7fe0;
+  --blue-dim: #1f63b8;
+  --blue-bg: rgba(47, 127, 224, 0.09);
+  --blue-border: rgba(47, 127, 224, 0.30);
+
+  --cyan: #0098a8;
+  --pink: #d63384;
+
+  --scanline-alpha: 0.015;
 }
 
 * {
@@ -48,39 +123,55 @@
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
+  font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-/* Scanline effect on body */
+/* CRT scanline overlay — fixed top layer */
 body::before {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: repeating-linear-gradient(
     0deg,
     transparent,
     transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 4px
+    rgba(0, 0, 0, var(--scanline-alpha)) 2px,
+    rgba(0, 0, 0, var(--scanline-alpha)) 4px
   );
   pointer-events: none;
   z-index: 0;
 }
 
-/* Numbers use monospace */
+/* Numbers / explicit mono (everything is mono now, kept for clarity) */
 .mono { font-family: var(--font-mono); }
 
-/* Cards */
+/* ── Cards ── */
 .card {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 20px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+/* thin accent stripe on top of cards */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, var(--lime-border), transparent 70%);
+  opacity: 0.7;
+  border-radius: 4px 4px 0 0;
+  pointer-events: none;
 }
 
 .card:hover {
@@ -94,68 +185,69 @@ body::before {
 .status-dim { color: var(--text-secondary); }
 
 /* Glow effects */
-.glow-green { text-shadow: 0 0 12px rgba(0, 230, 118, 0.6); }
-.glow-red { text-shadow: 0 0 12px rgba(255, 61, 61, 0.6); }
-.glow-yellow { text-shadow: 0 0 12px rgba(255, 179, 0, 0.6); }
+.glow-green { text-shadow: 0 0 12px rgba(0, 232, 122, 0.55); }
+.glow-red { text-shadow: 0 0 12px rgba(255, 59, 59, 0.55); }
+.glow-yellow { text-shadow: 0 0 12px rgba(245, 166, 35, 0.55); }
+.glow-lime { text-shadow: 0 0 12px rgba(200, 255, 0, 0.55); }
 
-/* Inputs */
+/* ── Inputs ── */
 input, select, textarea {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 13px;
   padding: 10px 14px;
-  border-radius: 6px;
+  border-radius: 4px;
   width: 100%;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
   outline: none;
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 2px rgba(41, 121, 255, 0.15);
+  border-color: var(--lime-border);
+  box-shadow: 0 0 0 2px var(--lime-bg);
 }
 
 input[type="checkbox"] {
   width: auto;
-  accent-color: var(--green);
+  accent-color: var(--lime);
 }
 
 label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-secondary);
   display: block;
   margin-bottom: 6px;
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
 }
 
-/* Buttons */
+/* ── Buttons ── */
 .btn {
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .btn-primary {
-  background: var(--blue);
-  color: #fff;
-  border-color: var(--blue);
+  background: var(--lime);
+  color: #060607;
+  border-color: var(--lime);
 }
 
 .btn-primary:hover {
-  background: #1a6aff;
-  box-shadow: 0 0 16px rgba(41, 121, 255, 0.4);
+  box-shadow: 0 0 18px rgba(200, 255, 0, 0.35);
+  filter: brightness(1.05);
 }
 
 .btn-green {
@@ -166,13 +258,18 @@ label {
 
 .btn-green:hover {
   background: var(--green);
-  color: #000;
+  color: #060607;
 }
 
 .btn-red {
   background: var(--red-bg);
   color: var(--red);
   border-color: var(--red-border);
+}
+
+.btn-red:hover {
+  background: var(--red);
+  color: #fff;
 }
 
 .btn-ghost {
@@ -186,7 +283,7 @@ label {
   color: var(--text-primary);
 }
 
-/* Tables */
+/* ── Tables ── */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -198,8 +295,8 @@ th {
   text-align: left;
   padding: 10px 12px;
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
@@ -235,8 +332,20 @@ tr:hover td {
   margin: 20px 0;
 }
 
-/* Scrollbar */
+/* ── HUD motifs ── */
+/* blinking cursor (UTC clock) */
+.blink { animation: blink 1.05s steps(1) infinite; }
+@keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
+/* pulsing system status dot */
+.syspulse { animation: syspulse 3s ease-in-out infinite; }
+@keyframes syspulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.82); }
+}
+
+/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
 ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2a3f6a; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a44; }

@@ -300,7 +300,7 @@ export default function PaperTrading() {
               border: `1px solid ${vetoOn ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
               borderRadius: '6px', padding: '6px 12px', cursor: 'pointer',
               fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em',
-              fontFamily: 'IBM Plex Mono, monospace',
+              fontFamily: 'JetBrains Mono, monospace',
               opacity: loading ? 0.5 : 1,
             }}
           >
@@ -315,7 +315,7 @@ export default function PaperTrading() {
               border: `1px solid ${state.enabled ? 'rgba(255,61,61,0.3)' : 'rgba(0,230,118,0.3)'}`,
               borderRadius: '6px', padding: '6px 16px', cursor: 'pointer',
               fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em',
-              fontFamily: 'IBM Plex Mono, monospace',
+              fontFamily: 'JetBrains Mono, monospace',
               opacity: loading ? 0.5 : 1,
             }}
           >
@@ -380,7 +380,7 @@ export default function PaperTrading() {
                   <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>@ {state.openTrade!.entryPrice.toFixed(2)}</span>
                 </div>
                 <div style={{
-                  fontFamily: 'IBM Plex Mono, monospace', fontSize: '18px', fontWeight: 700,
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: '18px', fontWeight: 700,
                   color: liveDollars >= 0 ? 'var(--green)' : 'var(--red)',
                 }}>
                   {liveDollars >= 0 ? '+' : ''}{liveDollars.toFixed(2)}
@@ -433,7 +433,7 @@ export default function PaperTrading() {
                     </span>
                   </div>
                   <div style={{
-                    fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: 600,
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 600,
                     color: t.status === 'WIN' ? 'var(--green)' : t.status === 'LOSS' ? 'var(--red)' : 'var(--text-secondary)',
                   }}>
                     {t.resultDollars >= 0 ? '+' : ''}${t.resultDollars.toFixed(0)} ({t.resultPts >= 0 ? '+' : ''}{t.resultPts.toFixed(1)}pts)
@@ -603,7 +603,7 @@ function MiniStat({ label, value, color }: { label: string; value: string; color
         {label}
       </div>
       <div style={{
-        fontFamily: 'IBM Plex Mono, monospace', fontSize: '14px', fontWeight: 600,
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', fontWeight: 600,
         color: color ?? 'var(--text-primary)',
       }}>
         {value}

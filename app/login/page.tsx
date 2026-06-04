@@ -2,6 +2,8 @@
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 
+const MONO = 'JetBrains Mono, monospace'
+
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
@@ -14,119 +16,82 @@ export default function LoginPage() {
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: 'linear-gradient(135deg, #060a06 0%, #0d1117 50%, #060a0f 100%)',
+      background: 'var(--bg)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 9999,
+      fontFamily: MONO,
     }}>
-      {/* Subtle grid background */}
+      {/* Scanlines */}
       <div style={{
-        position: 'absolute',
-        inset: 0,
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px)',
+      }} />
+      {/* Subtle lime grid */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
         backgroundImage:
-          'linear-gradient(rgba(34,197,94,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(34,197,94,0.04) 1px, transparent 1px)',
+          'linear-gradient(rgba(200,255,0,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(200,255,0,0.035) 1px, transparent 1px)',
         backgroundSize: '48px 48px',
-        pointerEvents: 'none',
       }} />
 
-      {/* Corner accent — top left */}
-      <div style={{
-        position: 'absolute', top: 24, left: 24,
-        width: 40, height: 40,
-        borderTop: '2px solid rgba(34,197,94,0.3)',
-        borderLeft: '2px solid rgba(34,197,94,0.3)',
-        pointerEvents: 'none',
-      }} />
-      {/* Corner accent — bottom right */}
-      <div style={{
-        position: 'absolute', bottom: 24, right: 24,
-        width: 40, height: 40,
-        borderBottom: '2px solid rgba(34,197,94,0.3)',
-        borderRight: '2px solid rgba(34,197,94,0.3)',
-        pointerEvents: 'none',
-      }} />
+      {/* Corner accents */}
+      <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: '2px solid var(--lime-border)', borderLeft: '2px solid var(--lime-border)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 24, right: 24, width: 40, height: 40, borderBottom: '2px solid var(--lime-border)', borderRight: '2px solid var(--lime-border)', pointerEvents: 'none' }} />
 
       {/* Login card */}
       <div style={{
         position: 'relative',
-        border: '1px solid rgba(34,197,94,0.2)',
-        borderRadius: '12px',
-        padding: '52px 44px 44px',
+        border: '1px solid var(--border)',
+        borderRadius: '4px',
+        padding: '48px 44px 40px',
         width: '100%',
         maxWidth: '400px',
-        background: 'rgba(10,17,10,0.96)',
-        backdropFilter: 'blur(24px)',
-        boxShadow:
-          '0 0 80px rgba(34,197,94,0.06), 0 0 0 1px rgba(34,197,94,0.04), 0 32px 64px rgba(0,0,0,0.6)',
+        background: 'var(--card)',
+        boxShadow: '0 0 80px rgba(200,255,0,0.05), 0 32px 64px rgba(0,0,0,0.6)',
         textAlign: 'center',
       }}>
-        {/* Icon */}
-        <div style={{
-          width: 52, height: 52,
-          borderRadius: '10px',
-          background: 'rgba(34,197,94,0.08)',
-          border: '1px solid rgba(34,197,94,0.25)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 28px',
-          fontSize: 22,
-        }}>📡</div>
+        {/* top accent stripe */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, var(--lime), transparent 80%)' }} />
 
-        {/* Brand label */}
-        <div style={{
-          color: '#22c55e',
-          fontSize: '10px',
-          letterSpacing: '5px',
-          fontFamily: 'monospace',
-          textTransform: 'uppercase',
-          marginBottom: 10,
-        }}>Trading Watchtower</div>
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 24 }}>
+          <span className="syspulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--green)', boxShadow: '0 0 8px var(--green)' }} />
+          <span style={{ color: 'var(--lime)', fontSize: 19, fontWeight: 700, letterSpacing: '0.05em', textShadow: '0 0 16px rgba(200,255,0,0.4)' }}>WATCHTOWER</span>
+        </div>
 
-        <h1 style={{
-          color: '#f0fdf4',
-          fontSize: '20px',
-          fontWeight: 700,
-          margin: '0 0 8px',
-          fontFamily: 'monospace',
-          letterSpacing: '-0.3px',
-        }}>Restricted Access</h1>
+        <div style={{ color: 'var(--text-dim)', fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', marginBottom: 18 }}>
+          NQ / MNQ · ORB DECISION OS
+        </div>
 
-        <p style={{
-          color: '#374151',
-          fontSize: '12px',
-          margin: '0 0 36px',
-          fontFamily: 'monospace',
-          lineHeight: 1.7,
-        }}>
-          TopStep 50K Evaluation<br />
-          NQ / MNQ ORB Dashboard
+        <h1 style={{ color: 'var(--text-primary)', fontSize: 16, fontWeight: 700, margin: '0 0 6px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          Restricted Access
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 11, margin: '0 0 32px', lineHeight: 1.7, letterSpacing: '0.04em' }}>
+          TopStep 50K Evaluation Terminal
         </p>
 
         {/* Divider */}
-        <div style={{
-          height: 1,
-          background: 'linear-gradient(90deg, transparent, rgba(34,197,94,0.15), transparent)',
-          marginBottom: 32,
-        }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, var(--lime-border), transparent)', marginBottom: 28 }} />
 
-        {/* Google Sign-in button */}
+        {/* Google Sign-in */}
         <button
           onClick={handleSignIn}
           disabled={loading}
           style={{
             width: '100%',
             padding: '13px 20px',
-            background: loading ? 'rgba(34,197,94,0.6)' : '#22c55e',
-            color: '#000',
+            background: 'var(--lime)',
+            color: '#060607',
             border: 'none',
-            borderRadius: '8px',
-            fontSize: '12px',
-            fontWeight: 800,
-            fontFamily: 'monospace',
-            letterSpacing: '2.5px',
+            borderRadius: '4px',
+            fontSize: 12,
+            fontWeight: 700,
+            fontFamily: MONO,
+            letterSpacing: '0.16em',
             cursor: loading ? 'wait' : 'pointer',
+            opacity: loading ? 0.6 : 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -135,31 +100,13 @@ export default function LoginPage() {
             textTransform: 'uppercase',
           }}
         >
-          {/* Google G badge */}
-          <span style={{
-            background: '#fff',
-            borderRadius: '50%',
-            width: 22, height: 22,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 13,
-            fontWeight: 900,
-            color: '#4285F4',
-            flexShrink: 0,
-            fontFamily: 'Arial, sans-serif',
-            letterSpacing: 0,
-          }}>G</span>
-          {loading ? 'Connecting...' : 'Sign in with Google'}
+          <span style={{ background: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: '#4285F4', flexShrink: 0, fontFamily: 'Arial, sans-serif', letterSpacing: 0 }}>G</span>
+          {loading ? 'CONNECTING…' : 'Sign in with Google'}
         </button>
 
-        <p style={{
-          color: '#1f2937',
-          fontSize: '10px',
-          margin: '20px 0 0',
-          fontFamily: 'monospace',
-          letterSpacing: '1px',
-        }}>AUTHORIZED PERSONNEL ONLY</p>
+        <p style={{ color: 'var(--text-dim)', fontSize: 9, margin: '20px 0 0', letterSpacing: '0.16em' }}>
+          ▸ AUTHORIZED PERSONNEL ONLY
+        </p>
       </div>
     </div>
   )

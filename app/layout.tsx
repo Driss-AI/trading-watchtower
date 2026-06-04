@@ -20,7 +20,15 @@ export default async function RootLayout({
   const session = await getServerSession(authOptions)
 
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark">
+      <head>
+        {/* No-flash: apply persisted theme before first paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('wt-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <AuthProvider>
           <QueryProvider>
@@ -29,7 +37,7 @@ export default async function RootLayout({
                 <Navbar />
                 <MarketAlerts />
                 <main style={{
-                  maxWidth: '1200px',
+                  maxWidth: '1320px',
                   margin: '0 auto',
                   padding: '24px 16px',
                   position: 'relative',

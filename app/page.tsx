@@ -45,13 +45,19 @@ export default function Cockpit() {
   return (
     <div>
       {/* ── Header ── */}
-      <div style={{ marginBottom: '20px' }}>
-        <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-          BOT COMMAND
-        </h1>
-        <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
-          {nyTime} · NY Session · Autonomous ORB engine on MNQ
-        </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '22px' }}>
+        <div style={{ width: '3px', alignSelf: 'stretch', background: 'var(--lime)', borderRadius: '2px', boxShadow: '0 0 10px var(--lime-border)' }} />
+        <div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: 700, letterSpacing: '0.22em', color: 'var(--lime)', textTransform: 'uppercase', marginBottom: '5px' }}>
+            // LIVE COMMAND
+          </div>
+          <h1 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.01em' }}>
+            BOT COMMAND
+          </h1>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', marginTop: '5px', letterSpacing: '0.04em' }}>
+            {nyTime} · NY SESSION · AUTONOMOUS ORB ENGINE ON MNQ
+          </p>
+        </div>
       </div>
 
       {/* ── Primary: cockpit ── */}
@@ -104,10 +110,10 @@ export default function Cockpit() {
 
       {/* ── Quick links ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '20px' }}>
-        <QuickLink href="/paper"       label="Paper Performance"     icon="◇" desc="Engine trade log + debriefs" />
-        <QuickLink href="/risk"        label="Risk Calculator"       icon="⚡" desc="Size your position safely" />
-        <QuickLink href="/journal"     label="Log a Trade"           icon="◎" desc="Journal your execution" />
-        <QuickLink href="/session"     label="Manual Session Scorer" icon="◈" desc="Optional 0–100 quality score" />
+        <QuickLink href="/paper"         label="Paper Performance" icon="◇" desc="Engine trade log + debriefs" />
+        <QuickLink href="/opportunities" label="Signals"           icon="⊹" desc="Live ORB opportunity feed" />
+        <QuickLink href="/risk"          label="Risk Calculator"   icon="⚡" desc="Size your position safely" />
+        <QuickLink href="/performance"   label="Performance Stats" icon="◆" desc="Win rate · expectancy · curve" />
       </div>
     </div>
   )
@@ -117,7 +123,7 @@ function LimitCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="card">
       <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>{label}</div>
-      <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>{value}</div>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>{value}</div>
     </div>
   )
 }
@@ -125,11 +131,12 @@ function LimitCard({ label, value }: { label: string; value: string }) {
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '12px', margin: '24px 0 12px',
+      display: 'flex', alignItems: 'center', gap: '10px', margin: '26px 0 12px',
     }}>
+      <span style={{ color: 'var(--lime)', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>//</span>
       <div style={{
-        fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: 700,
-        letterSpacing: '0.12em', color: 'var(--text-dim)',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', fontWeight: 700,
+        letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-secondary)',
       }}>
         {children}
       </div>
@@ -140,15 +147,14 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 function QuickLink({ href, label, icon, desc }: { href: string; label: string; icon: string; desc: string }) {
   return (
-    <a href={href} style={{
-      display: 'block', background: 'var(--card)', border: '1px solid var(--border)',
-      borderRadius: '8px', padding: '16px', textDecoration: 'none', transition: 'all 0.15s',
+    <a href={href} className="card" style={{
+      display: 'block', padding: '16px', textDecoration: 'none',
     }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-bright)'; (e.currentTarget as HTMLElement).style.background = 'var(--card-hover)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--lime-border)'; (e.currentTarget as HTMLElement).style.background = 'var(--card-hover)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'var(--card)' }}>
-      <div style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--blue)' }}>{icon}</div>
-      <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--text-primary)', marginBottom: '4px' }}>{label}</div>
-      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{desc}</div>
+      <div style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--lime)' }}>{icon}</div>
+      <div style={{ fontWeight: '700', fontSize: '13px', color: 'var(--text-primary)', marginBottom: '4px', letterSpacing: '0.02em' }}>{label}</div>
+      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>{desc}</div>
     </a>
   )
 }

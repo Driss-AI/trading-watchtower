@@ -79,7 +79,7 @@ export default function TopstepXStatus() {
   if (!result.configured) {
     return (
       <div className="card" style={{ borderColor: 'var(--yellow)', borderWidth: '1px', borderStyle: 'solid' }}>
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--yellow)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '12px' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--yellow)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '12px' }}>
           TOPSTEPX — NOT CONFIGURED
         </div>
         <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
@@ -90,7 +90,7 @@ export default function TopstepXStatus() {
           ['TOPSTEPX_API_KEY',  'Settings → API tab in TopstepX'],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', gap: '12px', marginBottom: '8px', alignItems: 'flex-start' }}>
-            <code style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--green)', background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{k}</code>
+            <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--green)', background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{k}</code>
             <span style={{ fontSize: '12px', color: 'var(--text-dim)', paddingTop: '2px' }}>{v}</span>
           </div>
         ))}
@@ -103,11 +103,11 @@ export default function TopstepXStatus() {
       {/* Header bar */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '4px' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '4px' }}>
             TOPSTEPX API — INTEGRATION STATUS
           </div>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <span style={{ color: result.ready ? 'var(--green)' : 'var(--red)', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: '18px' }}>
+            <span style={{ color: result.ready ? 'var(--green)' : 'var(--red)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '18px' }}>
               {result.ready ? '● CONNECTED' : '● ERRORS DETECTED'}
             </span>
             <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>
@@ -119,13 +119,13 @@ export default function TopstepXStatus() {
           <button
             onClick={runVerify}
             disabled={loading}
-            style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', padding: '6px 14px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
+            style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', padding: '6px 14px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
           >
             {loading ? 'Checking…' : '↻ Re-run'}
           </button>
           <button
             onClick={startStream}
-            style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', padding: '6px 14px', background: streaming ? 'var(--red)' : 'var(--green)', border: 'none', borderRadius: '6px', color: '#000', cursor: 'pointer', fontWeight: 600 }}
+            style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', padding: '6px 14px', background: streaming ? 'var(--red)' : 'var(--green)', border: 'none', borderRadius: '6px', color: '#000', cursor: 'pointer', fontWeight: 600 }}
           >
             {streaming ? '■ Stop stream' : '▶ Test live stream'}
           </button>
@@ -134,13 +134,13 @@ export default function TopstepXStatus() {
 
       {/* Check results */}
       <div className="card">
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '16px' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '16px' }}>
           INTEGRATION CHECKS
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {result.checks?.map((check) => (
             <div key={check.name} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <span style={{ color: statusColor(check.status), fontFamily: 'IBM Plex Mono, monospace', fontSize: '14px', minWidth: '12px', marginTop: '1px' }}>
+              <span style={{ color: statusColor(check.status), fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', minWidth: '12px', marginTop: '1px' }}>
                 {statusIcon(check.status)}
               </span>
               <div style={{ flex: 1 }}>
@@ -148,17 +148,17 @@ export default function TopstepXStatus() {
                   <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
                     {check.name}
                   </span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
                     {check.ms}ms
                   </span>
                 </div>
                 {check.status === 'fail' && (
-                  <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '2px', fontFamily: 'IBM Plex Mono, monospace' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
                     {check.detail}
                   </div>
                 )}
                 {check.status === 'pass' && check.data && (
-                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px', fontFamily: 'IBM Plex Mono, monospace' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px', fontFamily: 'JetBrains Mono, monospace' }}>
                     {Object.entries(check.data)
                       .filter(([, v]) => v !== null && typeof v !== 'object')
                       .map(([k, v]) => `${k}: ${v}`)
@@ -174,18 +174,18 @@ export default function TopstepXStatus() {
       {/* Live stream panel */}
       {(streaming || liveEvents.length > 0) && (
         <div className="card">
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             LIVE EVENT STREAM — USER HUB
             {streaming && <span style={{ color: 'var(--green)', animation: 'pulse 1.5s infinite' }}>● LIVE</span>}
           </div>
           {liveEvents.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: '12px', fontFamily: 'IBM Plex Mono, monospace' }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '12px', fontFamily: 'JetBrains Mono, monospace' }}>
               Waiting for events… (trades, account updates, position changes will appear here)
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '300px', overflowY: 'auto' }}>
               {liveEvents.map((ev, i) => (
-                <div key={i} style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: '4px', borderLeft: `3px solid ${ev.type === 'trade' ? 'var(--green)' : ev.type === 'error' ? 'var(--red)' : 'var(--yellow)'}` }}>
+                <div key={i} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: '4px', borderLeft: `3px solid ${ev.type === 'trade' ? 'var(--green)' : ev.type === 'error' ? 'var(--red)' : 'var(--yellow)'}` }}>
                   <span style={{ color: 'var(--text-dim)' }}>[{ev.type.toUpperCase()}]</span>{' '}
                   <span style={{ color: 'var(--text-secondary)' }}>
                     {JSON.stringify(ev.data ?? { hub: ev.hub, msg: ev.message })}
@@ -198,7 +198,7 @@ export default function TopstepXStatus() {
       )}
 
       {result.timestamp && (
-        <div style={{ fontSize: '11px', color: 'var(--text-dim)', textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-dim)', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>
           Last checked: {new Date(result.timestamp).toLocaleTimeString()}
         </div>
       )}

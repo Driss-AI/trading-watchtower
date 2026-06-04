@@ -48,7 +48,7 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
   }, [macro, onMacroLoad])
 
   if (isLoading) return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
       Loading macro sentiment...
     </div>
   )
@@ -77,10 +77,10 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '13px' }}>🌐</span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
             {macro.marketStatus?.isWeekend ? "WEEKEND MACRO OUTLOOK — NEXT WEEK'S NQ BIAS" : macro.marketStatus?.isMarketHours ? 'LIVE MACRO SENTIMENT — NQ BIAS' : 'MACRO MARKET SENTIMENT — NQ BIAS'}
           </span>
-          {lastUpdated && <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>· {lastUpdated} ET</span>}
+          {lastUpdated && <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>· {lastUpdated} ET</span>}
         </div>
         <button onClick={() => refetch()} className="btn btn-ghost" style={{ fontSize: '11px', padding: '4px 10px' }}>↻</button>
       </div>
@@ -89,10 +89,10 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
         {/* NQ Bias Banner */}
         <div style={{ background: biasBg, border: `1px solid ${biasBorder}`, borderRadius: '8px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: biasColor, fontWeight: '700', letterSpacing: '0.1em', marginBottom: '4px' }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: biasColor, fontWeight: '700', letterSpacing: '0.1em', marginBottom: '4px' }}>
               {macro.marketStatus?.isWeekend ? "NEXT WEEK'S NQ MACRO BIAS" : macro.marketStatus?.isAfterHours ? "NEXT SESSION'S NQ MACRO BIAS" : macro.marketStatus?.isMarketHours ? 'LIVE NQ MACRO BIAS' : "PRE-MARKET NQ MACRO BIAS"}
             </div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '15px', fontWeight: '700', color: biasColor }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '15px', fontWeight: '700', color: biasColor }}>
               {macro.nqBiasLabel}
             </div>
           </div>
@@ -159,7 +159,7 @@ export default function MacroSentiment({ onMacroLoad }: Props) {
         )}
 
         {macro.errors.length > 0 && (
-          <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
             ⚠ {macro.errors.join(' · ')}
           </div>
         )}
@@ -201,7 +201,7 @@ function FGCard({ data }: { data: FearGreed }) {
           <span>Fear</span><span>Neutral</span><span>Greed</span>
         </div>
       </div>
-      <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '24px', fontWeight: '700', color, lineHeight: 1 }}>{data.score}</div>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '700', color, lineHeight: 1 }}>{data.score}</div>
       <div style={{ fontSize: '11px', color, fontWeight: '600', marginTop: '2px' }}>{data.rating}</div>
       <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '4px' }}>
         Prev: {data.previousClose} · Week: {data.previousWeek}
@@ -220,7 +220,7 @@ function MacroCard({ label, icon, value, sub, impact, impactLabel, border }: {
       <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '8px' }}>
         {icon} {label}
       </div>
-      <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: valueColor, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: '700', color: valueColor, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>{sub}</div>
       <div style={{ fontSize: '11px', color: valueColor, marginTop: '4px', fontWeight: '600' }}>{impactLabel}</div>
     </div>

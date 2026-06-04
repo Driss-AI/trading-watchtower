@@ -31,7 +31,7 @@ export default function PaperPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  if (loading) return <div style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', padding: '40px' }}>Loading...</div>
+  if (loading) return <div style={{ color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', padding: '40px' }}>Loading...</div>
   if (!stats) return null
 
   const noData = stats.totalTrades === 0
@@ -39,10 +39,10 @@ export default function PaperPage() {
   return (
     <div>
       <div style={{ marginBottom: '20px' }}>
-        <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>
+        <h1 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>
           PAPER VALIDATION
         </h1>
-        <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
+        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
           30 days · 50 trades · Prove the edge before automation
         </p>
       </div>
@@ -53,7 +53,7 @@ export default function PaperPage() {
       {noData ? (
         <div className="card" style={{ textAlign: 'center', padding: '80px' }}>
           <div style={{ fontSize: '32px', marginBottom: '16px' }}>◇</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
             No paper trades yet. Start the Paper Trading Engine on the Dashboard.
           </div>
         </div>
@@ -79,21 +79,21 @@ export default function PaperPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
             <div className="card" style={{ borderColor: 'var(--green-border)' }}>
               <div style={{ fontSize: '10px', color: 'var(--green)', fontWeight: 600, letterSpacing: '0.08em', marginBottom: '8px' }}>↑ LONG</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: 700 }}>{stats.byDirection.LONG.trades}</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: stats.byDirection.LONG.pnl >= 0 ? 'var(--green)' : 'var(--red)', marginTop: '2px' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: 700 }}>{stats.byDirection.LONG.trades}</div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: stats.byDirection.LONG.pnl >= 0 ? 'var(--green)' : 'var(--red)', marginTop: '2px' }}>
                 {stats.byDirection.LONG.pnl >= 0 ? '+' : ''}${stats.byDirection.LONG.pnl.toFixed(0)}
               </div>
             </div>
             <div className="card" style={{ borderColor: 'var(--red-border)' }}>
               <div style={{ fontSize: '10px', color: 'var(--red)', fontWeight: 600, letterSpacing: '0.08em', marginBottom: '8px' }}>↓ SHORT</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: 700 }}>{stats.byDirection.SHORT.trades}</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: stats.byDirection.SHORT.pnl >= 0 ? 'var(--green)' : 'var(--red)', marginTop: '2px' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: 700 }}>{stats.byDirection.SHORT.trades}</div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: stats.byDirection.SHORT.pnl >= 0 ? 'var(--green)' : 'var(--red)', marginTop: '2px' }}>
                 {stats.byDirection.SHORT.pnl >= 0 ? '+' : ''}${stats.byDirection.SHORT.pnl.toFixed(0)}
               </div>
             </div>
             <div className="card" style={{ borderColor: 'rgba(99,102,241,0.3)' }}>
               <div style={{ fontSize: '10px', color: 'rgba(129,140,248,0.9)', fontWeight: 600, letterSpacing: '0.08em', marginBottom: '8px' }}>AI BRAIN</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: 700 }}>{stats.aiPct}%</div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: 700 }}>{stats.aiPct}%</div>
               <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>AI-confirmed entries</div>
             </div>
           </div>
@@ -106,15 +106,15 @@ export default function PaperPage() {
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={stats.dailyBreakdown}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b85b8' }} tickFormatter={(d: string) => d.slice(5)} />
-                  <YAxis tick={{ fontSize: 10, fill: '#6b85b8' }} tickFormatter={(v: number) => `$${v}`} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} tickFormatter={(d: string) => d.slice(5)} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} tickFormatter={(v: number) => `$${v}`} />
                   <Tooltip
-                    contentStyle={{ background: '#0d1a30', border: '1px solid #162040', borderRadius: '6px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px' }}
+                    contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}
                     formatter={(v: number) => [`$${v.toFixed(2)}`, 'Cumulative P&L']}
                     labelFormatter={(l: string) => l}
                   />
-                  <ReferenceLine y={0} stroke="#3a5280" strokeDasharray="3 3" />
-                  <Line type="monotone" dataKey="cumPnl" stroke="#00e676" strokeWidth={2} dot={{ r: 3, fill: '#00e676' }} />
+                  <ReferenceLine y={0} stroke="var(--text-dim)" strokeDasharray="3 3" />
+                  <Line type="monotone" dataKey="cumPnl" stroke="var(--green)" strokeWidth={2} dot={{ r: 3, fill: 'var(--green)' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -140,16 +140,16 @@ export default function PaperPage() {
                 <tbody>
                   {stats.dailyBreakdown.map((d) => (
                     <tr key={d.date}>
-                      <td style={{ fontFamily: 'IBM Plex Mono, monospace' }}>{d.date}</td>
-                      <td style={{ fontFamily: 'IBM Plex Mono, monospace' }}>{d.trades}</td>
-                      <td style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
+                      <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{d.date}</td>
+                      <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{d.trades}</td>
+                      <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                         <span style={{ color: 'var(--green)' }}>{d.wins}</span>/<span style={{ color: 'var(--red)' }}>{d.losses}</span>
                       </td>
-                      <td style={{ fontFamily: 'IBM Plex Mono, monospace', color: d.winRate >= 50 ? 'var(--green)' : 'var(--red)' }}>{d.winRate}%</td>
-                      <td style={{ fontFamily: 'IBM Plex Mono, monospace', color: d.pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      <td style={{ fontFamily: 'JetBrains Mono, monospace', color: d.winRate >= 50 ? 'var(--green)' : 'var(--red)' }}>{d.winRate}%</td>
+                      <td style={{ fontFamily: 'JetBrains Mono, monospace', color: d.pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
                         {d.pnl >= 0 ? '+' : ''}${d.pnl.toFixed(0)}
                       </td>
-                      <td style={{ fontFamily: 'IBM Plex Mono, monospace', color: d.cumPnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      <td style={{ fontFamily: 'JetBrains Mono, monospace', color: d.cumPnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
                         {d.cumPnl >= 0 ? '+' : ''}${d.cumPnl.toFixed(0)}
                       </td>
                     </tr>
@@ -186,7 +186,7 @@ export default function PaperPage() {
                   )}
                 </div>
                 <div style={{
-                  fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', fontWeight: 600, flexShrink: 0, marginLeft: '12px',
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: 600, flexShrink: 0, marginLeft: '12px',
                   color: t.status === 'WIN' ? 'var(--green)' : t.status === 'LOSS' ? 'var(--red)' : 'var(--text-secondary)',
                 }}>
                   {(t.resultDollars ?? 0) >= 0 ? '+' : ''}${(t.resultDollars ?? 0).toFixed(0)}
@@ -228,7 +228,7 @@ function DebriefRow({ debrief }: { debrief: Debrief }) {
           color: 'rgba(129,140,248,0.95)', textAlign: 'left',
         }}
       >
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: 700, letterSpacing: '0.04em' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 700, letterSpacing: '0.04em' }}>
           {open ? '▾' : '▸'} {debrief.date}
         </span>
       </button>
@@ -289,7 +289,7 @@ function ValidationScorecard({ stats }: { stats: PaperStats }) {
             </span>
             <div>
               <div style={{ fontSize: '11px', color: c.passed ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{c.label}</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: 600, color: c.passed ? 'var(--green)' : 'var(--text-dim)' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 600, color: c.passed ? 'var(--green)' : 'var(--text-dim)' }}>
                 {c.value}
               </div>
             </div>
@@ -307,14 +307,14 @@ function ProgressBar({ label, current, target }: { label: string; current: numbe
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
         <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{label}</span>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: 600, color: done ? 'var(--green)' : 'var(--text-primary)' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: 600, color: done ? 'var(--green)' : 'var(--text-primary)' }}>
           {current}/{target}
         </span>
       </div>
       <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '3px', height: '6px', overflow: 'hidden' }}>
         <div style={{
           width: `${pct}%`, height: '100%',
-          background: done ? 'var(--green)' : '#2979ff',
+          background: done ? 'var(--green)' : 'var(--blue)',
           borderRadius: '3px',
           transition: 'width 0.6s ease',
           boxShadow: done ? '0 0 8px rgba(0,230,118,0.5)' : undefined,
@@ -328,7 +328,7 @@ function Stat({ label, value, color, sub }: { label: string; value: string; colo
   return (
     <div className="card">
       <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '20px', fontWeight: 700, color: color ?? 'var(--text-primary)' }}>{value}</div>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '20px', fontWeight: 700, color: color ?? 'var(--text-primary)' }}>{value}</div>
       {sub && <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>{sub}</div>}
     </div>
   )

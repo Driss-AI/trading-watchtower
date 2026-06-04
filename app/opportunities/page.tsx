@@ -85,10 +85,10 @@ export default function OpportunitiesPage() {
     <div>
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <h1 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>
             OPPORTUNITIES
           </h1>
-          <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
             Every armed break the engine saw · log what you actually did
           </p>
         </div>
@@ -97,8 +97,8 @@ export default function OpportunitiesPage() {
           value={date}
           onChange={(e) => setDate(e.target.value)}
           style={{
-            background: '#0d1a30', border: '1px solid #162040', borderRadius: '6px',
-            color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono, monospace',
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '6px',
+            color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace',
             fontSize: '12px', padding: '6px 10px',
           }}
         />
@@ -114,13 +114,13 @@ export default function OpportunitiesPage() {
       </div>
 
       {loading ? (
-        <div className="card" style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', padding: '40px', textAlign: 'center' }}>
+        <div className="card" style={{ color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', padding: '40px', textAlign: 'center' }}>
           Loading…
         </div>
       ) : rows.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '60px' }}>
           <div style={{ fontSize: '28px', marginBottom: '12px' }}>◇</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
             No opportunities logged for {date}.
           </div>
         </div>
@@ -162,8 +162,8 @@ function Row({ r, open, onToggle, onSaved }: { r: Opp; open: boolean; onToggle: 
   return (
     <>
       <tr>
-        <td style={{ fontFamily: 'IBM Plex Mono, monospace' }}>{clockET(r.barTime)}</td>
-        <td style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: r.direction === 'LONG' ? 'var(--green)' : 'var(--red)' }}>
+        <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{clockET(r.barTime)}</td>
+        <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: r.direction === 'LONG' ? 'var(--green)' : 'var(--red)' }}>
           {r.direction === 'LONG' ? '↑' : '↓'}
         </td>
         <td>
@@ -180,16 +180,16 @@ function Row({ r, open, onToggle, onSaved }: { r: Opp; open: boolean; onToggle: 
             <span style={{ color: 'var(--yellow)', fontSize: '9px', marginLeft: '6px', letterSpacing: '0.05em' }}>CAUTION</span>
           )}
         </td>
-        <td style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>
+        <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>
           {r.entry.toFixed(2)} → {r.target.toFixed(2)} <span style={{ color: 'var(--text-dim)' }}>(stop {r.stop.toFixed(2)} · {r.rrRatio.toFixed(1)}R)</span>
         </td>
-        <td style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px' }}>
+        <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
           {clockET(r.signalExpiresAt, true)}
           {r.isExpired && (
             <span style={{ color: 'var(--yellow)', fontSize: '9px', marginLeft: '6px', fontWeight: 700 }}>EXPIRED</span>
           )}
         </td>
-        <td style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px' }}>
+        <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
           {r.outcomeStatus === 'resolved' && r.outcomeLabel ? (
             <span style={{ color: outcomeColor(r.outcomeLabel) }}>
               {r.outcomeLabel.toUpperCase()}{r.outcomeR != null ? ` ${r.outcomeR >= 0 ? '+' : ''}${r.outcomeR.toFixed(1)}R` : ''}
@@ -280,7 +280,7 @@ function LogForm({ r, onSaved }: { r: Opp; onSaved: () => void }) {
       </Field>
       <button onClick={save} disabled={saving} style={saveBtnStyle(saving)}>{saving ? 'Saving…' : 'Save'}</button>
       {overChased && (
-        <span style={{ fontSize: '11px', color: 'var(--yellow)', fontFamily: 'IBM Plex Mono, monospace' }}>
+        <span style={{ fontSize: '11px', color: 'var(--yellow)', fontFamily: 'JetBrains Mono, monospace' }}>
           ⚠ chased {chase!.toFixed(2)}pt — past the {r.maxChaseDistance}pt limit
         </span>
       )}
@@ -296,7 +296,7 @@ function ExecBadge({ r }: { r: Opp }) {
   }
   const color = s === 'TAKEN' ? 'var(--green)' : s === 'MISSED' || s === 'EXPIRED' ? 'var(--yellow)' : 'var(--text-secondary)'
   return (
-    <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', fontWeight: 700, color }}>
+    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', fontWeight: 700, color }}>
       {s}
       {s === 'TAKEN' && r.actualEntry != null && (
         <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}> @{r.actualEntry.toFixed(2)}{r.executionDelaySeconds != null ? ` ·${r.executionDelaySeconds}s` : ''}</span>
@@ -324,23 +324,23 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   return (
     <div className="card">
       <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '20px', fontWeight: 700, color: color ?? 'var(--text-primary)' }}>{value}</div>
+      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '20px', fontWeight: 700, color: color ?? 'var(--text-primary)' }}>{value}</div>
     </div>
   )
 }
 
 const inputStyle: React.CSSProperties = {
-  background: '#0d1a30', border: '1px solid #162040', borderRadius: '6px',
-  color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono, monospace',
+  background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '6px',
+  color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace',
   fontSize: '12px', padding: '6px 8px', width: '110px',
 }
 
 function logBtnStyle(open: boolean): React.CSSProperties {
   return {
     background: open ? 'rgba(41,121,255,0.15)' : 'transparent',
-    border: '1px solid #162040', borderRadius: '6px',
-    color: open ? '#dce8ff' : '#6b85b8',
-    fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: 600,
+    border: '1px solid var(--border)', borderRadius: '6px',
+    color: open ? 'var(--text-primary)' : 'var(--text-secondary)',
+    fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: 600,
     padding: '4px 12px', cursor: 'pointer',
   }
 }
@@ -349,7 +349,7 @@ function saveBtnStyle(saving: boolean): React.CSSProperties {
   return {
     background: saving ? 'rgba(0,230,118,0.1)' : 'rgba(0,230,118,0.15)',
     border: '1px solid rgba(0,230,118,0.3)', borderRadius: '6px',
-    color: 'var(--green)', fontFamily: 'IBM Plex Mono, monospace',
+    color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace',
     fontSize: '12px', fontWeight: 700, padding: '6px 16px',
     cursor: saving ? 'default' : 'pointer',
   }

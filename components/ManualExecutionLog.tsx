@@ -113,7 +113,7 @@ export default function ManualExecutionLog() {
     return (
       <div className="card" style={{ marginBottom: '20px' }}>
         <Heading />
-        <div style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', padding: '8px 0' }}>Loading signals…</div>
+        <div style={{ color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', padding: '8px 0' }}>Loading signals…</div>
       </div>
     )
   }
@@ -122,7 +122,7 @@ export default function ManualExecutionLog() {
     <div className="card" style={{ marginBottom: '20px' }}>
       <Heading count={opps.length} />
       {opps.length === 0 ? (
-        <div style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', padding: '8px 0' }}>
+        <div style={{ color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', padding: '8px 0' }}>
           No signals fired yet today. The engine logs every OR breakout it evaluates here.
         </div>
       ) : (
@@ -164,18 +164,18 @@ function Row({ o, now, busy, onRecord }: { o: Opportunity; now: number; busy: bo
       background: 'var(--card-hover)', display: 'flex', flexDirection: 'column', gap: '6px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: dirColor, fontSize: '13px' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: dirColor, fontSize: '13px' }}>
           {isTake ? (caution ? 'CAUTION' : 'TAKE') : 'SKIP'} · {o.direction}
         </span>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)' }}>{o.market} · {time} ET</span>
-        <span style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', fontWeight: 700, color: STATUS_COLOR[status] ?? 'var(--text-dim)' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)' }}>{o.market} · {time} ET</span>
+        <span style={{ marginLeft: 'auto', fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', fontWeight: 700, color: STATUS_COLOR[status] ?? 'var(--text-dim)' }}>
           {status}
           {o.executionDelaySeconds != null && status === 'TAKEN' ? ` · +${o.executionDelaySeconds}s` : ''}
         </span>
       </div>
 
       {isTake && (
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>
           E {o.entry.toFixed(2)} · S {o.stop.toFixed(2)} · T {o.target.toFixed(2)} · {o.finalContracts}c
           {caution && o.entryBandLow != null && o.entryBandHigh != null
             ? ` · band ${o.entryBandLow.toFixed(2)}–${o.entryBandHigh.toFixed(2)} (pullback only)`
@@ -191,7 +191,7 @@ function Row({ o, now, busy, onRecord }: { o: Opportunity; now: number; busy: bo
       {o.manualExecutionStatus === 'NOT_TAKEN' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
           {isTake && (
-            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: 700, color: live ? 'var(--green)' : 'var(--red)' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: 700, color: live ? 'var(--green)' : 'var(--red)' }}>
               {live ? `⏱ ${secsLeft}s left` : 'EXPIRED'}
             </span>
           )}
@@ -202,7 +202,7 @@ function Row({ o, now, busy, onRecord }: { o: Opportunity; now: number; busy: bo
       )}
 
       {status === 'TAKEN' && o.actualEntry != null && (
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--green)' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--green)' }}>
           Filled {o.actualEntry.toFixed(2)} × {o.actualContracts ?? '?'}
           {' · slippage '}{(o.direction === 'LONG' ? o.actualEntry - o.entry : o.entry - o.actualEntry).toFixed(2)} pts
         </div>
@@ -217,7 +217,7 @@ function Btn({ label, color, disabled, onClick }: { label: string; color: string
       onClick={onClick}
       disabled={disabled}
       style={{
-        fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: 600,
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: 600,
         color, background: 'transparent', border: `1px solid ${color}`,
         borderRadius: '4px', padding: '3px 10px', cursor: disabled ? 'wait' : 'pointer',
         opacity: disabled ? 0.5 : 1,

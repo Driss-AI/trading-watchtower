@@ -1,136 +1,178 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { SessionTimerNavbar } from './SessionTimer'
+import ThemeToggle from './ThemeToggle'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Cockpit', icon: '⬛' },
-  { href: '/paper', label: 'Paper', icon: '◇' },
-  { href: '/opportunities', label: 'Signals', icon: '⊹' },
-  { href: '/scoreboard', label: 'Scoreboard', icon: '◆' },
-  { href: '/session', label: 'Session', icon: '◈' },
-  { href: '/risk', label: 'Risk Calc', icon: '⚡' },
-  { href: '/journal', label: 'Journal', icon: '◎' },
-  { href: '/performance', label: 'Stats', icon: '◆' },
-  { href: '/settings', label: 'Settings', icon: '⚙' },
+  { href: '/', label: 'Cockpit' },
+  { href: '/opportunities', label: 'Signals' },
+  { href: '/paper', label: 'Paper' },
+  { href: '/risk', label: 'Risk' },
+  { href: '/performance', label: 'Stats' },
+  { href: '/settings', label: 'Settings' },
 ]
+
+const MONO = 'JetBrains Mono, monospace'
+
+function UTCClock() {
+  const [t, setT] = useState('')
+  useEffect(() => {
+    const tick = () =>
+      setT(
+        new Date().toLocaleTimeString('en-GB', {
+          timeZone: 'UTC',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+      )
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  if (!t) return null
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '6px',
+      fontFamily: MONO, fontSize: '12px', fontWeight: 700,
+      color: 'var(--text-primary)', letterSpacing: '0.06em',
+    }}>
+      <span style={{ color: 'var(--text-dim)', fontSize: '9px', letterSpacing: '0.14em' }}>UTC</span>
+      <span>{t}</span>
+      <span className="blink" style={{ color: 'var(--lime)' }}>▋</span>
+    </div>
+  )
+}
 
 export default function Navbar() {
   const path = usePathname()
 
   return (
     <nav style={{
-      background: '#080f22',
-      borderBottom: '1px solid #162040',
+      background: 'var(--bg-secondary)',
+      borderBottom: '1px solid var(--border)',
       position: 'sticky',
       top: 0,
       zIndex: 100,
+      backdropFilter: 'blur(6px)',
     }}>
+      {/* ── Row 1 — brand bar ── */}
       <div style={{
-        maxWidth: '1200px',
+        maxWidth: '1320px',
         margin: '0 auto',
         padding: '0 16px',
+        height: '46px',
         display: 'flex',
         alignItems: 'center',
-        gap: '0',
+        gap: '12px',
+        borderBottom: '1px solid var(--border)',
       }}>
         {/* Logo */}
         <a href="/" style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          padding: '16px 20px 16px 0',
-          textDecoration: 'none',
-          borderRight: '1px solid #162040',
-          marginRight: '8px',
-          flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: '9px',
+          textDecoration: 'none', flexShrink: 0,
         }}>
+          <span className="syspulse" style={{
+            width: '8px', height: '8px', borderRadius: '50%',
+            background: 'var(--green)', boxShadow: '0 0 8px var(--green)',
+            flexShrink: 0,
+          }} />
           <span style={{
-            fontFamily: 'IBM Plex Mono, monospace',
-            fontSize: '18px',
-            fontWeight: '700',
-            color: '#00e676',
-            letterSpacing: '-0.02em',
-            textShadow: '0 0 12px rgba(0, 230, 118, 0.5)',
+            fontFamily: MONO, fontSize: '16px', fontWeight: 700,
+            color: 'var(--lime)', letterSpacing: '0.04em',
+            textShadow: '0 0 14px rgba(200,255,0,0.35)',
           }}>
             WATCHTOWER
           </span>
           <span style={{
-            fontSize: '10px',
-            fontFamily: 'IBM Plex Mono, monospace',
-            color: '#3a5280',
-            fontWeight: '500',
+            fontFamily: MONO, fontSize: '9px', fontWeight: 700,
+            color: 'var(--text-dim)', letterSpacing: '0.16em',
+            padding: '2px 6px', border: '1px solid var(--border)',
+            borderRadius: '4px',
           }}>
             NQ ORB
           </span>
         </a>
 
-        {/* Nav links */}
-        <div style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
-          {NAV_ITEMS.map((item) => {
-            const active = path === item.href
-            return (
-              <a
-                key={item.href}
-                href={item.href}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '18px 14px',
-                  textDecoration: 'none',
-                  fontFamily: 'DM Sans, sans-serif',
-                  fontSize: '12px',
-                  fontWeight: active ? '600' : '500',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: active ? '#dce8ff' : '#6b85b8',
-                  borderBottom: active ? '2px solid #2979ff' : '2px solid transparent',
-                  transition: 'all 0.15s',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span style={{ fontSize: '14px' }}>{item.icon}</span>
-                {item.label}
-              </a>
-            )
-          })}
-        </div>
+        <div style={{ flex: 1 }} />
 
-        {/* Session Timer */}
+        {/* Right cluster */}
+        <UTCClock />
         <div style={{ flexShrink: 0 }}>
           <SessionTimerNavbar />
         </div>
-
-        {/* Logout button */}
+        <ThemeToggle />
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           style={{
             flexShrink: 0,
-            marginLeft: '12px',
-            padding: '6px 12px',
+            height: '30px',
+            padding: '0 12px',
             background: 'transparent',
-            border: '1px solid #162040',
-            borderRadius: '6px',
-            color: '#3a5280',
-            fontFamily: 'IBM Plex Mono, monospace',
-            fontSize: '11px',
-            fontWeight: '500',
-            letterSpacing: '0.05em',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            color: 'var(--text-dim)',
+            fontFamily: MONO,
+            fontSize: '10px',
+            fontWeight: 700,
+            letterSpacing: '0.12em',
             cursor: 'pointer',
             transition: 'all 0.15s',
           }}
           onMouseEnter={e => {
-            (e.target as HTMLButtonElement).style.borderColor = '#ef4444'
-            ;(e.target as HTMLButtonElement).style.color = '#ef4444'
+            e.currentTarget.style.borderColor = 'var(--red-border)'
+            e.currentTarget.style.color = 'var(--red)'
           }}
           onMouseLeave={e => {
-            (e.target as HTMLButtonElement).style.borderColor = '#162040'
-            ;(e.target as HTMLButtonElement).style.color = '#3a5280'
+            e.currentTarget.style.borderColor = 'var(--border)'
+            e.currentTarget.style.color = 'var(--text-dim)'
           }}
         >
           LOGOUT
         </button>
+      </div>
+
+      {/* ── Row 2 — tabs ── */}
+      <div style={{
+        maxWidth: '1320px',
+        margin: '0 auto',
+        padding: '0 16px',
+        display: 'flex',
+        alignItems: 'stretch',
+        gap: '0',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+      }}>
+        {NAV_ITEMS.map((item) => {
+          const active = item.href === '/' ? path === '/' : path.startsWith(item.href)
+          return (
+            <a
+              key={item.href}
+              href={item.href}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '12px 16px',
+                textDecoration: 'none',
+                fontFamily: MONO,
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: active ? 'var(--lime)' : 'var(--text-secondary)',
+                borderBottom: active ? '2px solid var(--lime)' : '2px solid transparent',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-secondary)' }}
+            >
+              {item.label}
+            </a>
+          )
+        })}
       </div>
     </nav>
   )

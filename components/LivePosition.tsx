@@ -91,10 +91,10 @@ export default function LivePosition() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--text-dim)' }} />
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
           FLAT — No open position
         </span>
-        <span style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: streaming ? 'var(--green)' : 'var(--text-dim)' }}>
+        <span style={{ marginLeft: 'auto', fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: streaming ? 'var(--green)' : 'var(--text-dim)' }}>
           {streaming ? '● LIVE' : '○ connecting...'}
         </span>
       </div>
@@ -119,7 +119,7 @@ export default function LivePosition() {
           flexWrap: 'wrap',
         }}>
           <div style={{
-            fontFamily: 'IBM Plex Mono, monospace',
+            fontFamily: 'JetBrains Mono, monospace',
             fontWeight: 800,
             fontSize: '20px',
             color: position.direction === 'LONG' ? 'var(--green)' : 'var(--red)',
@@ -127,13 +127,13 @@ export default function LivePosition() {
           }}>
             {position.direction === 'LONG' ? '▲' : '▼'} {position.direction}
           </div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: '18px', color: 'var(--text-primary)' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '18px', color: 'var(--text-primary)' }}>
             {ticker(position.contractId)}
           </div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '14px', color: 'var(--text-secondary)' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', color: 'var(--text-secondary)' }}>
             {position.size} contract{position.size !== 1 ? 's' : ''} @ <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{position.averagePrice.toFixed(2)}</span>
           </div>
-          <div style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: streaming ? 'var(--green)' : 'var(--text-dim)' }}>
+          <div style={{ marginLeft: 'auto', fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: streaming ? 'var(--green)' : 'var(--text-dim)' }}>
             {streaming ? '● LIVE' : '○'}
           </div>
         </div>
@@ -150,19 +150,19 @@ export default function LivePosition() {
           borderRadius: '6px',
           flexWrap: 'wrap',
         }}>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>LAST FILL</span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: lastTrade.side === 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>LAST FILL</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: lastTrade.side === 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
             {lastTrade.side === 0 ? 'BUY' : 'SELL'} {lastTrade.size}
           </span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-primary)' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-primary)' }}>
             {ticker(lastTrade.contractId)} @ {lastTrade.price.toFixed(2)}
           </span>
           {lastTrade.pnl !== 0 && (
-            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: 700, color: lastTrade.pnl > 0 ? 'var(--green)' : 'var(--red)' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: 700, color: lastTrade.pnl > 0 ? 'var(--green)' : 'var(--red)' }}>
               {lastTrade.pnl > 0 ? '+' : ''}${lastTrade.pnl.toFixed(0)}
             </span>
           )}
-          <span style={{ marginLeft: 'auto', fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>{lastTrade.time}</span>
+          <span style={{ marginLeft: 'auto', fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>{lastTrade.time}</span>
         </div>
       )}
     </div>

@@ -136,13 +136,13 @@ export default function MarketAlerts() {
         <div
           key={toast.key}
           style={{
-            background: '#0a0f0a',
+            background: 'var(--card)',
             border: `1px solid ${toast.color}`,
             borderLeft: `4px solid ${toast.color}`,
             borderRadius: 8,
             padding: '14px 18px',
-            color: '#f0fdf4',
-            fontFamily: 'IBM Plex Mono, monospace',
+            color: 'var(--text-primary)',
+            fontFamily: 'JetBrains Mono, monospace',
             fontSize: 13,
             fontWeight: 600,
             boxShadow: `0 0 24px ${toast.color}40, 0 4px 20px rgba(0,0,0,0.6)`,
@@ -151,7 +151,7 @@ export default function MarketAlerts() {
           }}
         >
           {toast.message}
-          <div style={{ fontSize: 11, color: '#6b85b8', marginTop: 5, fontWeight: 400 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 5, fontWeight: 400 }}>
             {new Date().toLocaleTimeString('en-US', {
               timeZone: 'America/New_York',
               hour: '2-digit',

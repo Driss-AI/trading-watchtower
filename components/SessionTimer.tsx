@@ -110,30 +110,30 @@ export default function SessionTimer() {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             {isLive && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color, flexShrink: 0, animation: 'timerPulse 1.2s ease-in-out infinite' }} />}
-            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', color: s.color }}>{s.label}</span>
-            <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '4px', background: 'var(--surface)', border: `1px solid ${s.borderColor}`, color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>{s.dayLabel.toUpperCase()}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', color: s.color }}>{s.label}</span>
+            <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '4px', background: 'var(--surface)', border: `1px solid ${s.borderColor}`, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{s.dayLabel.toUpperCase()}</span>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono, monospace' }}>{s.sublabel}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>{s.sublabel}</div>
         </div>
         <div style={{ textAlign: 'center', flexShrink: 0 }}>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: isLive ? '38px' : '30px', fontWeight: '700', color: s.color, lineHeight: 1, letterSpacing: '0.04em', textShadow: isLive ? `0 0 20px ${s.color}70` : 'none' }}>{countdown}</div>
-          <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginTop: '3px', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: isLive ? '38px' : '30px', fontWeight: '700', color: s.color, lineHeight: 1, letterSpacing: '0.04em', textShadow: isLive ? `0 0 20px ${s.color}70` : 'none' }}>{countdown}</div>
+          <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginTop: '3px', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em' }}>
             {s.phase === 'orb_window' ? 'OR CLOSES IN' : s.phase === 'post_orb' ? 'SESSION CLOSES IN' : s.phase === 'approaching' ? 'UNTIL OPEN' : 'UNTIL NEXT SESSION'}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ marginBottom: '6px' }}>
-            <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '1px' }}>DUBAI (YOUR TIME)</div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>{s.dubaiTime}</div>
+            <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em', marginBottom: '1px' }}>DUBAI (YOUR TIME)</div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>{s.dubaiTime}</div>
           </div>
           <div>
-            <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '1px' }}>ET (NEW YORK)</div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '14px', fontWeight: '400', color: 'var(--text-secondary)' }}>{s.nyTime}</div>
+            <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em', marginBottom: '1px' }}>ET (NEW YORK)</div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', fontWeight: '400', color: 'var(--text-secondary)' }}>{s.nyTime}</div>
           </div>
         </div>
       </div>
       <div style={{ marginTop: '14px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
           <span style={{ color: s.phase === 'approaching' || isLive ? s.color : 'var(--text-dim)' }}>9:30 AM ET · 6:30 PM DXB</span>
           <span style={{ color: s.phase === 'post_orb' ? s.color : 'var(--text-dim)' }}>9:45 AM · 6:45 PM</span>
           <span>11:30 AM · 7:30 PM</span>
@@ -146,7 +146,7 @@ export default function SessionTimer() {
           )}
           <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', background: 'var(--card)', transform: 'translateX(-50%)' }} />
         </div>
-        <div style={{ display: 'flex', marginTop: '4px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
+        <div style={{ display: 'flex', marginTop: '4px', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
           <div style={{ flex: 1, textAlign: 'center', color: s.phase === 'orb_window' ? 'var(--red)' : 'var(--text-dim)' }}>← OR BUILDING (15 min) →</div>
           <div style={{ flex: 1, textAlign: 'center', color: s.phase === 'post_orb' ? 'var(--green)' : 'var(--text-dim)' }}>← TRADE WINDOW (105 min) →</div>
         </div>
@@ -188,7 +188,7 @@ export function SessionTimerNavbar() {
       background: 'var(--card)',
       border: `1px solid ${s.borderColor}`,
       borderRadius: '20px',
-      fontFamily: 'IBM Plex Mono, monospace',
+      fontFamily: 'JetBrains Mono, monospace',
       fontSize: '11px',
       whiteSpace: 'nowrap',
       boxShadow: isLive ? `0 0 10px ${s.color}30` : 'none',

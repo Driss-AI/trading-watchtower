@@ -523,7 +523,7 @@ export default function ORBAlerts() {
 
     if (candleSignal.loading) {
       return (
-        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: `1px solid ${border}`, fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: `1px solid ${border}`, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>↻</span>
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
           Analysing candle structure...
@@ -536,7 +536,7 @@ export default function ORBAlerts() {
     // No bar data returned from API
     if (bodyStrength === -1) {
       return (
-        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: `1px solid ${border}`, fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)' }}>
+        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: `1px solid ${border}`, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)' }}>
           CANDLE READ · No bar data yet — available after 9:30 AM ET
         </div>
       )
@@ -552,24 +552,24 @@ export default function ORBAlerts() {
 
     return (
       <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: `1px solid ${border}` }}>
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '10px' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '10px' }}>
           {preBreakout ? 'CANDLE READ' : 'CANDLE SIGNAL'}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '10px' }}>
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>Body strength</div>
-            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: bodyColor }}>{bodyStrength.toFixed(0)}%</div>
+            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', color: bodyColor }}>{bodyStrength.toFixed(0)}%</div>
             <div style={{ fontSize: '10px', color: bodyColor, opacity: 0.8, textTransform: 'capitalize' }}>{bodyRating}</div>
           </div>
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>OR sweep</div>
-            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: sweepColor }}>{orSwept ? 'Yes' : 'No'}</div>
+            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', color: sweepColor }}>{orSwept ? 'Yes' : 'No'}</div>
             <div style={{ fontSize: '10px', color: sweepColor, opacity: 0.8 }}>{orSwept ? (sweepSide === 'high' ? 'High swept' : 'Low swept') : 'Clean OR'}</div>
           </div>
           <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '8px 10px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginBottom: '4px' }}>Follow-through</div>
-            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'IBM Plex Mono, monospace', color: followColor }}>{followThrough === null ? '—' : followThrough ? 'Yes' : 'No'}</div>
+            <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace', color: followColor }}>{followThrough === null ? '—' : followThrough ? 'Yes' : 'No'}</div>
             <div style={{ fontSize: '10px', color: followColor, opacity: 0.8 }}>{followThrough === null ? 'Next bar pending' : followThrough ? 'Confirming' : 'Fading'}</div>
           </div>
         </div>
@@ -577,7 +577,7 @@ export default function ORBAlerts() {
         <div style={{ background: verdictBg, border: `1px solid ${verdictBorder}`, borderRadius: '6px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '16px', color: verdictColor, fontWeight: '700', flexShrink: 0 }}>{verdictIcon}</span>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: '700', color: verdictColor, fontFamily: 'IBM Plex Mono, monospace' }}>{verdictText}</div>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: verdictColor, fontFamily: 'JetBrains Mono, monospace' }}>{verdictText}</div>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>{verdictSub}</div>
           </div>
         </div>
@@ -601,10 +601,10 @@ export default function ORBAlerts() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', flexShrink: 0, boxShadow: `0 0 20px ${isLong ? 'rgba(0,230,118,0.6)' : 'rgba(255,61,61,0.6)'}` }}>{isLong ? '↑' : '↓'}</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '24px', fontWeight: '700', color, letterSpacing: '-0.02em', textShadow: `0 0 12px ${isLong ? 'rgba(0,230,118,0.5)' : 'rgba(255,61,61,0.5)'}` }}>{isLong ? '▲ LONG BREAKOUT' : '▼ SHORT BREAKOUT'}</div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>NQ broke {isLong ? 'above OR High' : 'below OR Low'} at {breakoutTime} ET · Price: {breakoutPrice?.toFixed(2)}</div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '700', color, letterSpacing: '-0.02em', textShadow: `0 0 12px ${isLong ? 'rgba(0,230,118,0.5)' : 'rgba(255,61,61,0.5)'}` }}>{isLong ? '▲ LONG BREAKOUT' : '▼ SHORT BREAKOUT'}</div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>NQ broke {isLong ? 'above OR High' : 'below OR Low'} at {breakoutTime} ET · Price: {breakoutPrice?.toFixed(2)}</div>
             {macroBias && (
-              <div style={{ marginTop: '8px', padding: '6px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontFamily: 'IBM Plex Mono, monospace' }}>
+              <div style={{ marginTop: '8px', padding: '6px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>
                 <span style={{ color: macroBias.color }}>● {macroBias.label} Macro</span>
                 <span style={{ color: 'var(--text-dim)' }}>·</span>
                 <span style={{ color: breakoutAligned ? 'var(--green)' : breakoutAligned === false ? 'var(--yellow)' : 'var(--text-secondary)' }}>
@@ -614,7 +614,7 @@ export default function ORBAlerts() {
             )}
             {/* Volume signal */}
             {volumeSignal && (
-              <div style={{ marginTop: '6px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ marginTop: '6px', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: 'var(--text-dim)' }}>Volume:</span>
                 <span style={{
                   fontWeight: '700',
@@ -629,12 +629,12 @@ export default function ORBAlerts() {
             )}
             {/* Late entry warning */}
             {lateEntry && (
-              <div style={{ marginTop: '6px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--yellow)' }}>
+              <div style={{ marginTop: '6px', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--yellow)' }}>
                 ⚠ Late entry — European close at 10:30 ET increases reversal risk
               </div>
             )}
           </div>
-          <div style={{ textAlign: 'right', flexShrink: 0, fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+          <div style={{ textAlign: 'right', flexShrink: 0, fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
             <div style={{ color: 'var(--green)', marginBottom: '4px' }}>OR High: {orHigh?.toFixed(2)}</div>
             <div style={{ color: 'var(--text-dim)', marginBottom: '4px' }}>Range: {orSize?.toFixed(0)} pts</div>
             <div style={{ color: 'var(--red)' }}>OR Low: {orLow?.toFixed(2)}</div>
@@ -642,8 +642,8 @@ export default function ORBAlerts() {
         </div>
         <CandleCard dir={breakout} />
         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: `1px solid ${border}`, display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <a href="/risk" style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '600', color, textDecoration: 'none', padding: '8px 16px', border: `1px solid ${border}`, borderRadius: '6px' }}>⚡ Open Risk Calculator</a>
-          <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>Entry = live price · Stop = {isLong ? 'OR Low' : 'OR High'} · Target = 1.5× OR</span>
+          <a href="/risk" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '600', color, textDecoration: 'none', padding: '8px 16px', border: `1px solid ${border}`, borderRadius: '6px' }}>⚡ Open Risk Calculator</a>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>Entry = live price · Stop = {isLong ? 'OR Low' : 'OR High'} · Target = 1.5× OR</span>
         </div>
       </div>
     )
@@ -653,7 +653,7 @@ export default function ORBAlerts() {
   if (phase === 'forming') {
     return (
       <div style={{ background: 'var(--card)', border: '1px solid var(--yellow-border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', marginBottom: orHigh ? '10px' : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', marginBottom: orHigh ? '10px' : 0 }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--yellow)', animation: 'pulse 1.5s ease-in-out infinite' }} />
           <style>{`@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }`}</style>
           <span style={{ color: 'var(--yellow)', fontWeight: '600' }}>OR FORMING</span>
@@ -663,7 +663,7 @@ export default function ORBAlerts() {
         </div>
         {orHigh && orLow && (
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '12px', fontSize: '11px', fontFamily: 'IBM Plex Mono, monospace' }}>
+            <div style={{ display: 'flex', gap: '12px', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>
               <span><span style={{ color: 'var(--text-dim)' }}>High:</span> <span style={{ color: 'var(--green)', fontWeight: '700' }}>{orHigh.toFixed(2)}</span></span>
               <span><span style={{ color: 'var(--text-dim)' }}>Low:</span> <span style={{ color: 'var(--red)', fontWeight: '700' }}>{orLow.toFixed(2)}</span></span>
               <span><span style={{ color: 'var(--text-dim)' }}>Size:</span> <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{(orHigh - orLow).toFixed(0)} pts</span></span>
@@ -688,7 +688,7 @@ export default function ORBAlerts() {
     const closerToHigh = distToHigh !== null && distToLow !== null && Math.abs(distToHigh) < Math.abs(distToLow)
     return (
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: streaming ? 'var(--green)' : 'var(--text-dim)', animation: streaming ? 'pulse 1.5s ease-in-out infinite' : 'none' }} />
           <style>{`@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }`}</style>
           <span style={{ color: 'var(--green)', fontWeight: '600' }}>ORB MONITOR</span>
@@ -715,7 +715,7 @@ export default function ORBAlerts() {
                 return <div style={{ position: 'absolute', left: `${pct}%`, top: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: inRange ? 'var(--blue)' : livePrice > orHigh ? 'var(--green)' : 'var(--red)', transform: 'translateX(-7px)', boxShadow: `0 0 8px ${inRange ? 'rgba(41,121,255,0.5)' : livePrice > orHigh ? 'rgba(0,230,118,0.5)' : 'rgba(255,61,61,0.5)'}`, transition: 'left 0.3s ease' }} />
               })()}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px' }}>
               <span style={{ color: 'var(--red)' }}>SHORT ←</span>
               <span style={{ color: 'var(--text-dim)' }}>range</span>
               <span style={{ color: 'var(--green)' }}>→ LONG</span>
@@ -730,7 +730,7 @@ export default function ORBAlerts() {
   // NO OR DATA
   if ((phase === 'monitoring' || phase === 'closed') && !orLocked) {
     return (
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
         <span style={{ color: 'var(--text-dim)' }}>◈</span>
         <span style={{ color: 'var(--text-secondary)' }}>ORB: No OR captured today — </span>
         <a href="/session" style={{ color: 'var(--blue)', textDecoration: 'none', fontWeight: '600' }}>Enter OR manually →</a>
@@ -742,7 +742,7 @@ export default function ORBAlerts() {
   if (phase === 'closed' && orLocked && orHigh && orLow) {
     return (
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
           <span style={{ color: 'var(--text-dim)' }}>◈</span>
           <span style={{ color: 'var(--text-dim)', fontWeight: '600' }}>SESSION CLOSED</span>
           <span style={{ color: 'var(--text-dim)' }}>·</span>
@@ -765,7 +765,7 @@ export default function ORBAlerts() {
   if (breakout && dismissed) {
     const isLong = breakout === 'LONG'
     return (
-      <div style={{ background: 'var(--card)', border: `1px solid ${isLong ? 'var(--green-border)' : 'var(--red-border)'}`, borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+      <div style={{ background: 'var(--card)', border: `1px solid ${isLong ? 'var(--green-border)' : 'var(--red-border)'}`, borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
         <span style={{ color: isLong ? 'var(--green)' : 'var(--red)', fontWeight: '700' }}>{isLong ? '▲' : '▼'} {breakout} BREAKOUT</span>
         <span style={{ color: 'var(--text-dim)' }}>at {breakoutTime} ET</span>
         {candleSignal && !candleSignal.loading && candleSignal.bodyStrength !== -1 && (

@@ -143,16 +143,16 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '0.1em' }}>CANDLE READER</span>
-          <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', fontFamily: 'IBM Plex Mono, monospace', background: connected ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)', color: connected ? '#22c55e' : '#6b7280' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '0.1em' }}>CANDLE READER</span>
+          <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', fontFamily: 'JetBrains Mono, monospace', background: connected ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)', color: connected ? '#22c55e' : 'var(--text-secondary)' }}>
             {connected ? '● LIVE' : '○ OFF'}
           </span>
-          {orPos && <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', fontFamily: 'IBM Plex Mono, monospace', background: `${orPosColor}15`, color: orPosColor }}>{orPos}</span>}
+          {orPos && <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', fontFamily: 'JetBrains Mono, monospace', background: `${orPosColor}15`, color: orPosColor }}>{orPos}</span>}
         </div>
         <div style={{ display: 'flex', gap: '4px' }}>
           {[1, 3, 5].map(tf => (
             <button key={tf} onClick={() => setTimeframe(tf)} style={{
-              fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer',
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer',
               border: '1px solid', borderColor: timeframe === tf ? 'var(--border-bright)' : 'transparent',
               background: timeframe === tf ? 'var(--surface)' : 'transparent',
               color: timeframe === tf ? 'var(--text-primary)' : 'var(--text-dim)', transition: 'all 0.15s',
@@ -163,14 +163,14 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
 
       {/* Price ticker */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '10px' }}>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '24px', fontWeight: '700', letterSpacing: '-0.02em', transition: 'color 0.2s',
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', fontWeight: '700', letterSpacing: '-0.02em', transition: 'color 0.2s',
           color: priceDir === 'up' ? '#22c55e' : priceDir === 'down' ? '#ef4444' : 'var(--text-primary)' }}>
           {lastPrice ? lastPrice.toFixed(2) : '—'}
         </span>
         {priceDir && <span style={{ fontSize: '16px', color: priceDir === 'up' ? '#22c55e' : '#ef4444' }}>{priceDir === 'up' ? '▲' : '▼'}</span>}
         {liveCandle && (
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', marginLeft: '4px',
-            color: priceChangeInCandle > 0 ? '#22c55e' : priceChangeInCandle < 0 ? '#ef4444' : '#6b7280' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', marginLeft: '4px',
+            color: priceChangeInCandle > 0 ? '#22c55e' : priceChangeInCandle < 0 ? '#ef4444' : 'var(--text-secondary)' }}>
             {priceChangeInCandle >= 0 ? '+' : ''}{priceChangeInCandle.toFixed(1)} pts · {liveCandle.ticks} ticks
           </span>
         )}
@@ -179,7 +179,7 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
       {/* Chart — SVG scales to 100% width via viewBox */}
       <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '6px', marginBottom: '12px' }}>
         {visibleCandles.length === 0 ? (
-          <div style={{ height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px' }}>
+          <div style={{ height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
             Waiting for first tick...
           </div>
         ) : (
@@ -192,7 +192,7 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
               return (
                 <g key={pct}>
                   <line x1={PAD_L} y1={y} x2={VB_W - PAD_R} y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                  <text x={VB_W - PAD_R + 3} y={y + 3} fill="#374151" fontSize="8" fontFamily="monospace">{price.toFixed(0)}</text>
+                  <text x={VB_W - PAD_R + 3} y={y + 3} fill="var(--text-dim)" fontSize="8" fontFamily="monospace">{price.toFixed(0)}</text>
                 </g>
               )
             })}
@@ -246,12 +246,12 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
                   {/* Pattern emoji */}
                   {pat && !isLive && (
                     <text x={cx} y={bull ? bodyTop - 4 : bodyBot + 11}
-                      fill={isSel ? '#fff' : '#6b7280'} fontSize="9" textAnchor="middle">{pat.emoji}</text>
+                      fill={isSel ? '#fff' : 'var(--text-secondary)'} fontSize="9" textAnchor="middle">{pat.emoji}</text>
                   )}
 
                   {/* Time label every 3 candles */}
                   {i % 3 === 0 && (
-                    <text x={cx} y={VB_H - 5} fill="#374151" fontSize="7" textAnchor="middle" fontFamily="monospace">
+                    <text x={cx} y={VB_H - 5} fill="var(--text-dim)" fontSize="7" textAnchor="middle" fontFamily="monospace">
                       {new Date(c.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })}
                     </text>
                   )}
@@ -267,16 +267,16 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
         <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
           {(['open', 'high', 'low', 'close'] as const).map(k => (
             <div key={k} style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: '8px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: k === 'close' ? '700' : '400',
+              <div style={{ fontSize: '8px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: k === 'close' ? '700' : '400',
                 color: k === 'close' ? (liveCandle.close >= liveCandle.open ? '#22c55e' : '#ef4444') : k === 'high' ? '#22c55e' : k === 'low' ? '#ef4444' : 'var(--text-secondary)' }}>
                 {liveCandle[k].toFixed(0)}
               </div>
             </div>
           ))}
           <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', paddingLeft: '10px', flex: 1 }}>
-            <div style={{ fontSize: '8px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.06em' }}>TICKS</div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>{liveCandle.ticks}</div>
+            <div style={{ fontSize: '8px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.06em' }}>TICKS</div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)' }}>{liveCandle.ticks}</div>
           </div>
         </div>
       )}
@@ -290,49 +290,49 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '22px' }}>{selectedPattern.emoji}</span>
                 <div>
-                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', fontWeight: '700', color: sig.color }}>{selectedPattern.name}</div>
-                  <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', marginTop: '2px' }}>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700', color: sig.color }}>{selectedPattern.name}</div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: '2px' }}>
                     O:{selectedCandle.open.toFixed(0)} H:{selectedCandle.high.toFixed(0)} L:{selectedCandle.low.toFixed(0)} C:{selectedCandle.close.toFixed(0)}
                   </div>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                <span style={{ padding: '2px 8px', borderRadius: '4px', background: `${sig.color}20`, color: sig.color, fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', fontWeight: '700', letterSpacing: '0.08em' }}>{sig.label}</span>
-                <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)' }}>{selectedPattern.strength}% strength</span>
+                <span style={{ padding: '2px 8px', borderRadius: '4px', background: `${sig.color}20`, color: sig.color, fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', fontWeight: '700', letterSpacing: '0.08em' }}>{sig.label}</span>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)' }}>{selectedPattern.strength}% strength</span>
               </div>
             </div>
             <div style={{ height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', marginBottom: '10px' }}>
               <div style={{ width: `${selectedPattern.strength}%`, height: '100%', background: sig.color, boxShadow: `0 0 6px ${sig.color}50` }} />
             </div>
             <div style={{ marginBottom: '10px' }}>
-              <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '4px' }}>WHAT THIS MEANS</div>
+              <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em', marginBottom: '4px' }}>WHAT THIS MEANS</div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.55', margin: 0 }}>{selectedPattern.meaning}</p>
             </div>
             <div style={{ marginBottom: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '4px' }}>ORB CONTEXT</div>
+              <div style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em', marginBottom: '4px' }}>ORB CONTEXT</div>
               <p style={{ fontSize: '12px', color: sig.color, lineHeight: '1.55', margin: 0 }}>{selectedPattern.orbContext}</p>
             </div>
             <div style={{ background: `${sig.color}10`, border: `1px solid ${sig.color}25`, borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>⚡</span>
-              <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: sig.color, fontWeight: '700' }}>{selectedPattern.action}</span>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: sig.color, fontWeight: '700' }}>{selectedPattern.action}</span>
             </div>
           </div>
         )
       })() : selectedIsLive ? (
         <div style={{ background: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.2)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-          <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: '#facc15', margin: 0 }}>⏳ Live candle forming — pattern reads on close</p>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: '#facc15', margin: 0 }}>⏳ Live candle forming — pattern reads on close</p>
         </div>
       ) : (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
-          <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', margin: 0 }}>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', margin: 0 }}>
             {candles.length === 0 ? 'Building first candle...' : '👆 Click any candle to read the pattern'}
           </p>
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
-        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>{candles.length} candles · {timeframe}M · MNQ · ET</span>
-        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace' }}>🟡 forming</span>
+        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{candles.length} candles · {timeframe}M · MNQ · ET</span>
+        <span style={{ fontSize: '9px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>🟡 forming</span>
       </div>
     </div>
   )

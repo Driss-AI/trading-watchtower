@@ -54,7 +54,7 @@ export default function EconomicCalendar() {
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span>📅</span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
             {markerLabel}
           </span>
           <MarketBadge status={marketStatus} />
@@ -68,7 +68,7 @@ export default function EconomicCalendar() {
       </div>
 
       {loading ? (
-        <div style={{ padding: '16px 20px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>Loading calendar...</div>
+        <div style={{ padding: '16px 20px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>Loading calendar...</div>
       ) : (
         <div style={{ padding: '14px 20px' }}>
 
@@ -91,13 +91,13 @@ export default function EconomicCalendar() {
 
           {/* Expand toggle */}
           {!expanded && otherDays.length > 0 && !marketStatus?.isWeekend && (
-            <button onClick={() => setExpanded(true)} style={{ marginTop: '8px', background: 'none', border: 'none', color: 'var(--blue)', cursor: 'pointer', fontSize: '12px', padding: 0, fontFamily: 'IBM Plex Mono, monospace' }}>
+            <button onClick={() => setExpanded(true)} style={{ marginTop: '8px', background: 'none', border: 'none', color: 'var(--blue)', cursor: 'pointer', fontSize: '12px', padding: 0, fontFamily: 'JetBrains Mono, monospace' }}>
               + Show rest of week ({otherDays.length} more day{otherDays.length > 1 ? 's' : ''}) →
             </button>
           )}
 
           {days.length === 0 && (
-            <div style={{ color: 'var(--text-dim)', fontSize: '12px', fontFamily: 'IBM Plex Mono, monospace' }}>No USD events found for this week</div>
+            <div style={{ color: 'var(--text-dim)', fontSize: '12px', fontFamily: 'JetBrains Mono, monospace' }}>No USD events found for this week</div>
           )}
         </div>
       )}
@@ -115,15 +115,15 @@ function SessionVerdictBanner({ impact, isWeekend, dayLabel }: { impact: ReturnT
     <div style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: '8px', padding: '12px 16px', marginBottom: '14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: impact.keyEvents.length > 0 ? '10px' : 0 }}>
         <div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: textColor, fontWeight: '700', letterSpacing: '0.1em', marginBottom: '4px' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: textColor, fontWeight: '700', letterSpacing: '0.1em', marginBottom: '4px' }}>
             {isWeekend ? `${dayLabel.toUpperCase()} TRADING VERDICT` : "TODAY'S TRADING VERDICT"}
           </div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '14px', fontWeight: '700', color: textColor }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', fontWeight: '700', color: textColor }}>
             {impact.verdictLabel}
           </div>
         </div>
         {impact.scoreAdjustment < 0 && (
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '18px', fontWeight: '700', color: textColor }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '18px', fontWeight: '700', color: textColor }}>
             {impact.scoreAdjustment} pts
           </div>
         )}
@@ -148,11 +148,11 @@ function DaySection({ day, badge, showIntel }: { day: CalendarDay; badge?: strin
   return (
     <div style={{ marginBottom: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)' }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)' }}>
           {day.dateLabel}
         </span>
         {badge && (
-          <span style={{ fontSize: '10px', fontWeight: '700', color: badge === 'TODAY' ? 'var(--blue)' : 'var(--text-secondary)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em' }}>
+          <span style={{ fontSize: '10px', fontWeight: '700', color: badge === 'TODAY' ? 'var(--blue)' : 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em' }}>
             {badge}
           </span>
         )}
@@ -192,7 +192,7 @@ function EventRow({ event, showIntel }: { event: NewsEvent; showIntel?: boolean 
         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: impactColor, flexShrink: 0 }} />
 
         {/* Time */}
-        <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)', width: '54px', flexShrink: 0 }}>{event.time}</span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)', width: '54px', flexShrink: 0 }}>{event.time}</span>
 
         {/* Title */}
         <span style={{ fontSize: '12px', color: event.impact === 'high' ? 'var(--text-primary)' : 'var(--text-secondary)', flex: 1, fontWeight: event.impact === 'high' ? '600' : '400' }}>
@@ -213,7 +213,7 @@ function EventRow({ event, showIntel }: { event: NewsEvent; showIntel?: boolean 
 
         {/* Forecast/Previous */}
         {(event.forecast || event.previous) && (
-          <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', flexShrink: 0, textAlign: 'right', minWidth: '90px' }}>
+          <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0, textAlign: 'right', minWidth: '90px' }}>
             {event.forecast ? `F:${event.forecast}` : ''} {event.previous ? `P:${event.previous}` : ''}
           </span>
         )}
@@ -229,13 +229,13 @@ function EventRow({ event, showIntel }: { event: NewsEvent; showIntel?: boolean 
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', margin: '4px 0 8px 18px' }}>
           {/* What is this */}
           <div style={{ marginBottom: '10px' }}>
-            <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.08em', fontFamily: 'IBM Plex Mono, monospace' }}>WHAT IT IS</span>
+            <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.08em', fontFamily: 'JetBrains Mono, monospace' }}>WHAT IT IS</span>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{intel.description}</div>
           </div>
 
           {/* NQ context */}
           <div style={{ marginBottom: '10px' }}>
-            <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.08em', fontFamily: 'IBM Plex Mono, monospace' }}>HOW IT AFFECTS NQ</span>
+            <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-dim)', letterSpacing: '0.08em', fontFamily: 'JetBrains Mono, monospace' }}>HOW IT AFFECTS NQ</span>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{intel.nqContext}</div>
           </div>
 
@@ -273,7 +273,7 @@ function MarketBadge({ status }: { status: MarketStatus | null }) {
   const bg     = status.isMarketHours ? 'var(--green-bg)' : status.isPreMarket ? 'var(--yellow-bg)' : 'var(--surface)'
   const border = status.isMarketHours ? 'var(--green-border)' : status.isPreMarket ? 'var(--yellow-border)' : 'var(--border)'
   return (
-    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', fontFamily: 'IBM Plex Mono, monospace', fontWeight: '600', background: bg, color, border: `1px solid ${border}` }}>
+    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', fontFamily: 'JetBrains Mono, monospace', fontWeight: '600', background: bg, color, border: `1px solid ${border}` }}>
       {label}
     </span>
   )

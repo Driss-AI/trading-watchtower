@@ -87,10 +87,10 @@ export default function SessionPage() {
   return (
     <div>
       <div style={{ marginBottom: '20px' }}>
-        <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>
+        <h1 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>
           SESSION SETUP
         </h1>
-        <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
+        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
           Enter conditions before the NY open · 9:30 AM ET (6:30 PM Dubai)
         </p>
       </div>
@@ -136,7 +136,7 @@ export default function SessionPage() {
             </div>
 
             {orbError && (
-              <div style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '11px', color: 'var(--red)', marginBottom: '12px', fontFamily: 'IBM Plex Mono, monospace' }}>
+              <div style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '11px', color: 'var(--red)', marginBottom: '12px', fontFamily: 'JetBrains Mono, monospace' }}>
                 {orbError}
               </div>
             )}
@@ -154,7 +154,7 @@ export default function SessionPage() {
 
             {orSize !== null && orSize > 0 && (
               <div style={{ padding: '12px 16px', background: orSize >= 50 && orSize <= 150 ? 'var(--green-bg)' : orSize < 30 || orSize > 200 ? 'var(--red-bg)' : 'var(--yellow-bg)', border: `1px solid ${orSize >= 50 && orSize <= 150 ? 'var(--green-border)' : orSize < 30 || orSize > 200 ? 'var(--red-border)' : 'var(--yellow-border)'}`, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: orSize >= 50 && orSize <= 150 ? 'var(--green)' : orSize < 30 || orSize > 200 ? 'var(--red)' : 'var(--yellow)' }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: '700', color: orSize >= 50 && orSize <= 150 ? 'var(--green)' : orSize < 30 || orSize > 200 ? 'var(--red)' : 'var(--yellow)' }}>
                   {orSize.toFixed(2)}
                 </span>
                 <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -238,7 +238,7 @@ export default function SessionPage() {
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: '40px 20px' }}>
               <div style={{ fontSize: '36px', marginBottom: '16px' }}>◈</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: 'var(--text-dim)' }}>
                 Click "Auto-fill Session" above or fill in manually, then Calculate Score
               </div>
             </div>
@@ -257,7 +257,7 @@ export default function SessionPage() {
               'Set max 2 trades for today',
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '10px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                <span style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', marginTop: '2px', flexShrink: 0 }}>
+                <span style={{ color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', marginTop: '2px', flexShrink: 0 }}>
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 {item}
@@ -277,9 +277,9 @@ function ScorePanel({ result }: { result: any }) {
   return (
     <>
       <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: '10px', padding: '28px', textAlign: 'center', marginBottom: '16px', boxShadow: `0 0 30px ${color}30` }}>
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '64px', fontWeight: '700', color, lineHeight: 1, textShadow: `0 0 20px ${color}80` }}>{result.score}</div>
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: '16px' }}>/ 100</div>
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '16px', fontWeight: '700', color }}>{result.decisionLabel}</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '64px', fontWeight: '700', color, lineHeight: 1, textShadow: `0 0 20px ${color}80` }}>{result.score}</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: '16px' }}>/ 100</div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '16px', fontWeight: '700', color }}>{result.decisionLabel}</div>
       </div>
       <div className="card">
         <div style={sectionTitle}>SCORE BREAKDOWN</div>
@@ -289,7 +289,7 @@ function ScorePanel({ result }: { result: any }) {
               <span style={{ color: f.met ? 'var(--green)' : 'var(--text-dim)', fontSize: '14px' }}>{f.met ? '✓' : '✗'}</span>
               {f.label}
             </div>
-            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', fontWeight: '700', color: f.points > 0 ? 'var(--green)' : 'var(--red)', flexShrink: 0, marginLeft: '12px' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', fontWeight: '700', color: f.points > 0 ? 'var(--green)' : 'var(--red)', flexShrink: 0, marginLeft: '12px' }}>
               {f.points > 0 ? '+' : ''}{f.points}
             </span>
           </div>
@@ -309,6 +309,6 @@ function ScorePanel({ result }: { result: any }) {
 }
 
 const sectionTitle: React.CSSProperties = {
-  fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', fontWeight: '600',
+  fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', fontWeight: '600',
   letterSpacing: '0.12em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '16px',
 }

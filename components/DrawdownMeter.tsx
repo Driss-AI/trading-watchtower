@@ -115,10 +115,10 @@ export default function DrawdownMeter() {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em' }}>
           TRAILING DRAWDOWN — $50K EVAL
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: 'IBM Plex Mono, monospace' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>
           <span style={{ color: streaming ? 'var(--green)' : 'var(--text-dim)' }}>
             {streaming ? '● LIVE' : '○ POLLING'}
           </span>
@@ -135,10 +135,10 @@ export default function DrawdownMeter() {
           { label: 'ROOM LEFT',    value: `$${Math.round(available).toLocaleString()}`, color: barColor, big: true },
         ].map(item => (
           <div key={item.label} style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>
               {item.label}
             </div>
-            <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: item.big ? '18px' : '14px', color: item.color }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: item.big ? '18px' : '14px', color: item.color }}>
               {item.value}
             </div>
           </div>
@@ -148,10 +148,10 @@ export default function DrawdownMeter() {
       {/* Trailing drawdown bar */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>
             DRAWDOWN USED — ${Math.round(remaining).toLocaleString()} of $2,000
           </span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: barColor, fontWeight: 600 }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: barColor, fontWeight: 600 }}>
             {pctUsed.toFixed(1)}%
           </span>
         </div>
@@ -165,7 +165,7 @@ export default function DrawdownMeter() {
             boxShadow: status === 'danger' ? `0 0 12px var(--red)` : undefined,
           }} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)' }}>
           <span>$0 used</span>
           <span style={{ color: 'var(--yellow)' }}>⚠ $1,600</span>
           <span style={{ color: 'var(--red)' }}>✕ $2,000 MAX</span>
@@ -175,10 +175,10 @@ export default function DrawdownMeter() {
       {/* Profit target bar */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--text-dim)' }}>
             PROFIT TARGET — ${Math.max(0, profitPnL).toLocaleString()} of $3,000
           </span>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: 'var(--green)', fontWeight: 600 }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--green)', fontWeight: 600 }}>
             {Math.max(0, progressToTarget).toFixed(1)}%
           </span>
         </div>
@@ -196,20 +196,20 @@ export default function DrawdownMeter() {
       {/* Status / Daily P&L row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
         <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '10px 14px' }}>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>ACCOUNT STATUS</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: '13px', color: canTrade ? 'var(--green)' : 'var(--red)' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>ACCOUNT STATUS</div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '13px', color: canTrade ? 'var(--green)' : 'var(--red)' }}>
             {canTrade ? '✓ CAN TRADE' : '✕ BLOCKED'}
           </div>
         </div>
         <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '10px 14px' }}>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>DAILY LOSS LIMIT</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: '13px', color: 'var(--yellow)' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>DAILY LOSS LIMIT</div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '13px', color: 'var(--yellow)' }}>
             ${DAILY_LIMIT.toLocaleString()} max
           </div>
         </div>
         <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '10px 14px' }}>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>TO PASS</div>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: '13px', color: 'var(--green)' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '9px', color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: '4px' }}>TO PASS</div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '13px', color: 'var(--green)' }}>
             ${Math.max(0, START_BALANCE + PROFIT_TARGET - balance).toLocaleString()} needed
           </div>
         </div>
@@ -222,7 +222,7 @@ export default function DrawdownMeter() {
           background: 'rgba(210, 40, 40, 0.15)',
           border: '1px solid var(--red)',
           borderRadius: '8px',
-          fontFamily: 'IBM Plex Mono, monospace',
+          fontFamily: 'JetBrains Mono, monospace',
           fontSize: '12px',
           color: 'var(--red)',
           fontWeight: 600,
@@ -237,7 +237,7 @@ export default function DrawdownMeter() {
           background: 'rgba(239, 159, 39, 0.1)',
           border: '1px solid var(--yellow)',
           borderRadius: '8px',
-          fontFamily: 'IBM Plex Mono, monospace',
+          fontFamily: 'JetBrains Mono, monospace',
           fontSize: '12px',
           color: 'var(--yellow)',
         }}>

@@ -32,14 +32,14 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 3000)
   }
 
-  if (!form) return <div style={{ color: 'var(--text-dim)', fontFamily: 'IBM Plex Mono, monospace', padding: '40px' }}>Loading...</div>
+  if (!form) return <div style={{ color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', padding: '40px' }}>Loading...</div>
 
   return (
     <div>
       <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>SETTINGS</h1>
-          <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>TopStep 50K evaluation configuration</p>
+          <h1 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>SETTINGS</h1>
+          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>TopStep 50K evaluation configuration</p>
         </div>
         <button onClick={save} disabled={saving} className="btn btn-primary">
           {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save Settings'}
@@ -96,15 +96,15 @@ export default function SettingsPage() {
           <Field label="Webhook Secret" value={form.tradingViewWebhookSecret ?? ''} onChange={v => set('tradingViewWebhookSecret', v)} placeholder="your-secret-key" secret />
           <div style={{ marginTop: '12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 14px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '6px' }}>WEBHOOK URL</div>
-            <code style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--blue)' }}>
+            <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--blue)' }}>
               https://your-app.railway.app/api/webhooks/tradingview
             </code>
           </div>
         </div>
         <div className="card" style={{ gridColumn: 'span 2' }}>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '16px' }}>05 · TOPSTEPX API — INTEGRATION</div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, letterSpacing: '0.1em', marginBottom: '16px' }}>05 · TOPSTEPX API — INTEGRATION</div>
           <TopstepXStatus />
-          <div style={{ marginTop: '16px', padding: '10px 14px', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: '6px', fontSize: '12px', color: 'var(--red)', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <div style={{ marginTop: '16px', padding: '10px 14px', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: '6px', fontSize: '12px', color: 'var(--red)', fontFamily: 'JetBrains Mono, monospace' }}>
             ⛔ ORDER EXECUTION IS PERMANENTLY DISABLED — this app never places or cancels trades
           </div>
         </div>
@@ -133,7 +133,7 @@ function Field({ label, value, onChange, type = 'text', note, placeholder, secre
 
 const st = {
   title: {
-    fontFamily: 'IBM Plex Mono, monospace',
+    fontFamily: 'JetBrains Mono, monospace',
     fontSize: '10px',
     fontWeight: '600',
     letterSpacing: '0.12em',

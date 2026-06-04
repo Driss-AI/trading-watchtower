@@ -137,10 +137,10 @@ export default function RiskPage() {
   return (
     <div>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>
+        <h1 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>
           RISK CALCULATOR
         </h1>
-        <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
+        <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
           Know your risk before you enter — every time
         </p>
       </div>
@@ -158,7 +158,7 @@ export default function RiskPage() {
             animation: streaming ? 'livePulse 1.5s ease-in-out infinite' : 'none',
           }} />
           <style>{`@keyframes livePulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }`}</style>
-          <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: streaming ? 'var(--green)' : 'var(--text-dim)', fontWeight: '600' }}>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: streaming ? 'var(--green)' : 'var(--text-dim)', fontWeight: '600' }}>
             {streaming ? `NQ LIVE ${livePrice?.toFixed(2) ?? ''}` : 'CONNECTING...'}
           </span>
         </div>
@@ -168,7 +168,7 @@ export default function RiskPage() {
         <button
           onClick={() => setLiveEntry(!liveEntry)}
           style={{
-            fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '600',
+            fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '600',
             padding: '6px 12px', borderRadius: '4px', cursor: 'pointer',
             border: `1px solid ${liveEntry ? 'var(--green-border)' : 'var(--border)'}`,
             background: liveEntry ? 'var(--green-bg)' : 'var(--surface)',
@@ -184,7 +184,7 @@ export default function RiskPage() {
             key={d}
             onClick={() => setDirection(d as 'LONG' | 'SHORT')}
             style={{
-              fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '600',
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '600',
               padding: '6px 12px', borderRadius: '4px', cursor: 'pointer',
               border: `1px solid ${direction === d ? (d === 'LONG' ? 'var(--green-border)' : 'var(--red-border)') : 'var(--border)'}`,
               background: direction === d ? (d === 'LONG' ? 'var(--green-bg)' : 'var(--red-bg)') : 'var(--surface)',
@@ -206,7 +206,7 @@ export default function RiskPage() {
           }}
           disabled={!hasOR}
           style={{
-            fontFamily: 'IBM Plex Mono, monospace', fontSize: '11px', fontWeight: '600',
+            fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', fontWeight: '600',
             padding: '6px 12px', borderRadius: '4px', cursor: hasOR ? 'pointer' : 'not-allowed',
             border: '1px solid var(--blue-border, var(--border))',
             background: 'var(--surface)',
@@ -229,7 +229,7 @@ export default function RiskPage() {
                 background: form.market === m ? 'var(--blue-bg)' : 'var(--surface)',
                 color: form.market === m ? '#fff' : 'var(--text-secondary)', padding: '14px',
               }}>
-                <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '16px', fontWeight: '700' }}>{m}</div>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '16px', fontWeight: '700' }}>{m}</div>
                 <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px' }}>${POINT_VALUES[m]}/point</div>
               </button>
             ))}
@@ -276,12 +276,12 @@ export default function RiskPage() {
             </div>
           </div>
 
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
             1 point {form.market} = ${pointValue} · 1 tick (0.25 pts) = ${pointValue * 0.25}
           </div>
 
           {hasOR && (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', fontSize: '12px', fontFamily: 'IBM Plex Mono, monospace', marginTop: '8px' }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', fontSize: '12px', fontFamily: 'JetBrains Mono, monospace', marginTop: '8px' }}>
               <span style={{ color: 'var(--text-dim)' }}>Today's OR:</span>{' '}
               <span style={{ color: 'var(--green)' }}>High {session!.orHigh!.toFixed(2)}</span>{' '}
               <span style={{ color: 'var(--text-dim)' }}>·</span>{' '}
@@ -301,20 +301,20 @@ export default function RiskPage() {
                   border: `1px solid ${calc.violatesLimit ? 'var(--red-border)' : 'var(--yellow-border)'}`,
                   borderRadius: '8px', padding: '14px 16px', fontSize: '13px',
                   color: calc.violatesLimit ? 'var(--red)' : 'var(--yellow)',
-                  marginBottom: '16px', fontFamily: 'IBM Plex Mono, monospace',
+                  marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace',
                 }}>{calc.violationMessage}</div>
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div className="card" style={{ background: 'var(--red-bg)', borderColor: 'var(--red-border)' }}>
                   <div style={{ fontSize: '10px', color: 'var(--red)', fontWeight: '600', letterSpacing: '0.08em', marginBottom: '8px' }}>RISK</div>
-                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '28px', fontWeight: '700', color: 'var(--red)' }}>${calc.totalRisk.toFixed(0)}</div>
-                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{calc.riskPts.toFixed(2)} pts</div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: '700', color: 'var(--red)' }}>${calc.totalRisk.toFixed(0)}</div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{calc.riskPts.toFixed(2)} pts</div>
                 </div>
                 <div className="card" style={{ background: 'var(--green-bg)', borderColor: 'var(--green-border)' }}>
                   <div style={{ fontSize: '10px', color: 'var(--green)', fontWeight: '600', letterSpacing: '0.08em', marginBottom: '8px' }}>REWARD</div>
-                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '28px', fontWeight: '700', color: 'var(--green)' }}>${calc.totalReward.toFixed(0)}</div>
-                  <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{calc.rewardPts.toFixed(2)} pts</div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: '700', color: 'var(--green)' }}>${calc.totalReward.toFixed(0)}</div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{calc.rewardPts.toFixed(2)} pts</div>
                 </div>
               </div>
 
@@ -330,7 +330,7 @@ export default function RiskPage() {
                 ].map(({ label, value, color }) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
-                    <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', fontWeight: '700', color: color ?? 'var(--text-primary)' }}>{value}</span>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700', color: color ?? 'var(--text-primary)' }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -338,7 +338,7 @@ export default function RiskPage() {
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
               <div style={{ fontSize: '36px', marginBottom: '16px' }}>⚡</div>
-              <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', color: 'var(--text-dim)', marginBottom: '16px' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: 'var(--text-dim)', marginBottom: '16px' }}>
                 Enter entry, stop, and target to calculate risk
               </div>
               {hasOR && (
@@ -363,7 +363,7 @@ export default function RiskPage() {
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
-                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '13px', fontWeight: '700', color: (color as string) ?? 'var(--text-primary)' }}>{value}</span>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', fontWeight: '700', color: (color as string) ?? 'var(--text-primary)' }}>{value}</span>
                 </div>
               ))}
             </div>
@@ -376,7 +376,7 @@ export default function RiskPage() {
 
 const st = {
   sectionTitle: {
-    fontFamily: 'IBM Plex Mono, monospace',
+    fontFamily: 'JetBrains Mono, monospace',
     fontSize: '10px', fontWeight: '600',
     letterSpacing: '0.12em', color: 'var(--text-dim)',
     textTransform: 'uppercase', marginBottom: '16px',
