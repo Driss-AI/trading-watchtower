@@ -113,12 +113,25 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
   const rawMin = prices.length ? Math.min(...prices) : 0
   const rawMax = prices.length ? Math.max(...prices) : 1
   const margin = (rawMax - rawMin) * 0.12
-  const priceMin = rawMin - margin
-  const priceMax = rawMax + margin
+  // Clamp a minimum visible range so a quiet/forming candle (tiny high-low
+  // spread) doesn't auto-zoom to fill the whole chart height. Expand
+  // symmetrically around the midpoint when the natural span is too small.
+  const MIN_RANGE = 25 // points
+  let priceMin = rawMin - margin
+  let priceMax = rawMax + margin
+  if (priceMax - priceMin < MIN_RANGE) {
+    const mid = (priceMax + priceMin) / 2
+    priceMin = mid - MIN_RANGE / 2
+    priceMax = mid + MIN_RANGE / 2
+  }
   const priceRange = priceMax - priceMin || 1
 
   const toY    = (p: number) => PAD_T + innerH - ((p - priceMin) / priceRange) * innerH
-  const slotW  = innerW / 12
+  const SLOTS  = 12
+  const slotW  = innerW / SLOTS
+  // Pin the newest candle to the right edge (history grows leftward), so a
+  // single candle sits at "now" instead of floating alone on the far left.
+  const slotOffset = Math.max(0, SLOTS - visibleCandles.length)
   const bodyW  = Math.max(slotW * 0.55, 5)
 
   const selectedIsLive = selectedIdx !== null && selectedIdx >= candles.length
@@ -183,7 +196,7 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
             Waiting for first tick...
           </div>
         ) : (
-          <svg viewBox={`0 0 ${VB_W} ${VB_H}`} width="100%" height={VB_H} style={{ display: 'block' }} preserveAspectRatio="xMidYMid meet">
+          <svg viewBox={`0 0 ${VB_W} ${VB_H}`} width="100%" style={{ display: 'block', width: '100%', height: 'auto' }} preserveAspectRatio="xMidYMid meet">
 
             {/* Grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map(pct => {
@@ -220,7 +233,7 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
               const isSel     = selectedIdx === globalIdx
               const bull      = c.close >= c.open
               const color     = bull ? '#22c55e' : '#ef4444'
-              const cx        = PAD_L + i * slotW + slotW / 2
+              const cx        = PAD_L + (slotOffset + i) * slotW + slotW / 2
               const bodyTop   = toY(Math.max(c.open, c.close))
               const bodyBot   = toY(Math.min(c.open, c.close))
               const bodyH     = Math.max(bodyBot - bodyTop, 2)
@@ -230,7 +243,7 @@ export default function CandleReader({ orHigh, orLow }: { orHigh?: number | null
                 <g key={i} style={{ cursor: isLive ? 'default' : 'pointer' }}
                   onClick={() => !isLive && setSelectedIdx(isSel ? null : globalIdx)}>
 
-                  {isSel && <rect x={PAD_L + i * slotW + 1} y={PAD_T} width={slotW - 2} height={innerH} fill="rgba(255,255,255,0.05)" rx="2" />}
+                  {isSel && <rect x={PAD_L + (slotOffset + i) * slotW + 1} y={PAD_T} width={slotW - 2} height={innerH} fill="rgba(255,255,255,0.05)" rx="2" />}
 
                   {/* Wick */}
                   <line x1={cx} y1={toY(c.high)} x2={cx} y2={toY(c.low)} stroke={isLive ? '#facc15' : color} strokeWidth="1.5" opacity={isLive ? 0.8 : 1} />
