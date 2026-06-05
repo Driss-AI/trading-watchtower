@@ -69,24 +69,6 @@ export default function Cockpit() {
       {/* ── Live breakout monitor ── */}
       <ORBAlerts />
 
-      {/* ── Account state (real TopStep account, not paper) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', alignItems: 'start' }}>
-        <LivePosition />
-        <div className="card">
-          <DrawdownMeter />
-        </div>
-      </div>
-
-      {/* ── Risk limits strip ── */}
-      {settings && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '28px' }}>
-          <LimitCard label="Daily Loss Limit"  value={`$${settings.dailyLossLimit.toFixed(0)}`} />
-          <LimitCard label="Trailing Drawdown" value={`$${settings.trailingDrawdown.toFixed(0)}`} />
-          <LimitCard label="Profit Target"     value={`$${settings.profitTarget.toFixed(0)}`} />
-          <LimitCard label="Max Trades / Day"  value={`${settings.maxTradesPerDay}`} />
-        </div>
-      )}
-
       {/* ── Context (secondary) ── */}
       <SectionHeading>CONTEXT</SectionHeading>
 
@@ -115,6 +97,25 @@ export default function Cockpit() {
         <QuickLink href="/risk"          label="Risk Calculator"   icon="⚡" desc="Size your position safely" />
         <QuickLink href="/performance"   label="Performance Stats" icon="◆" desc="Win rate · expectancy · curve" />
       </div>
+
+      {/* ── Account state + risk limits (moved to bottom) ── */}
+      <SectionHeading>ACCOUNT & LIMITS</SectionHeading>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'start' }}>
+        <LivePosition />
+        <div className="card">
+          <DrawdownMeter />
+        </div>
+      </div>
+
+      {settings && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '8px' }}>
+          <LimitCard label="Daily Loss Limit"  value={`$${settings.dailyLossLimit.toFixed(0)}`} />
+          <LimitCard label="Trailing Drawdown" value={`$${settings.trailingDrawdown.toFixed(0)}`} />
+          <LimitCard label="Profit Target"     value={`$${settings.profitTarget.toFixed(0)}`} />
+          <LimitCard label="Max Trades / Day"  value={`${settings.maxTradesPerDay}`} />
+        </div>
+      )}
     </div>
   )
 }
