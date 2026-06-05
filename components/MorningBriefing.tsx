@@ -188,18 +188,18 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
   // ─── RENDER ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <section className="mt-6 rounded-2xl border border-neutral-800 p-6 bg-neutral-950/60">
-        <h2 className="text-neutral-400 text-sm font-mono tracking-wide">MORNING PRE-SESSION BRIEFING</h2>
-        <p className="text-neutral-500 mt-4">Loading pre-session briefing…</p>
+      <section className="card mt-6">
+        <h2 className="text-sm font-mono tracking-wide" style={{ color: 'var(--text-secondary)' }}>MORNING PRE-SESSION BRIEFING</h2>
+        <p className="mt-4" style={{ color: 'var(--text-dim)' }}>Loading pre-session briefing…</p>
       </section>
     )
   }
 
   if (!briefing && error) {
     return (
-      <section className="mt-6 rounded-2xl border border-red-900/50 p-6 bg-red-950/40">
-        <h2 className="text-red-400 text-sm font-mono tracking-wide">MORNING PRE-SESSION BRIEFING — UNAVAILABLE</h2>
-        <p className="text-red-300 mt-4 text-sm">{error}</p>
+      <section className="mt-6 rounded p-6" style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)' }}>
+        <h2 className="text-sm font-mono tracking-wide" style={{ color: 'var(--red)' }}>MORNING PRE-SESSION BRIEFING — UNAVAILABLE</h2>
+        <p className="mt-4 text-sm" style={{ color: 'var(--red)' }}>{error}</p>
       </section>
     )
   }
@@ -214,52 +214,49 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
   const nqChangePct = liveNQ?.changePct ?? briefing.nq?.changePct ?? 0
   const nqUp        = nqChange >= 0
 
+  const labelStyle = { color: 'var(--text-dim)' }
+  const valueStyle = { color: 'var(--text-primary)' }
+
   return (
     <section className="mt-6 space-y-6">
       <header className="flex items-center gap-3">
-        <h2 className="text-neutral-400 text-sm font-mono tracking-wide">MORNING PRE-SESSION BRIEFING</h2>
+        <h2 className="text-sm font-mono tracking-wide" style={{ color: 'var(--text-secondary)' }}>MORNING PRE-SESSION BRIEFING</h2>
         <span
-          className={`flex items-center gap-1.5 text-xs font-mono tracking-wide ${
-            liveHealthy ? 'text-green-400' : 'text-neutral-600'
-          }`}
+          className="flex items-center gap-1.5 text-xs font-mono tracking-wide"
+          style={{ color: liveHealthy ? 'var(--green)' : 'var(--text-dim)' }}
           title={liveHealthy ? 'Live MNQ quotes streaming' : 'Live stream not connected yet'}
         >
-          <span className={`h-1.5 w-1.5 rounded-full ${liveHealthy ? 'bg-green-400 animate-pulse' : 'bg-neutral-700'}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${liveHealthy ? 'animate-pulse' : ''}`} style={{ background: liveHealthy ? 'var(--green)' : 'var(--border-bright)' }} />
           NQ LIVE
         </span>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* NQ tile — live + VWAP */}
-        <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60 relative">
-          <div className="text-[10px] font-mono tracking-wide text-neutral-500">NQ (MNQ proxy)</div>
-          <div className="mt-1 text-xl font-semibold text-neutral-100 tabular-nums">
+        <div className="card relative">
+          <div className="text-[10px] font-mono tracking-wide" style={labelStyle}>NQ (MNQ proxy)</div>
+          <div className="mt-1 text-xl font-semibold tabular-nums" style={valueStyle}>
             {nqPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div className={`mt-1 text-xs font-mono tabular-nums ${nqUp ? 'text-green-400' : 'text-red-400'}`}>
+          <div className="mt-1 text-xs font-mono tabular-nums" style={{ color: nqUp ? 'var(--green)' : 'var(--red)' }}>
             {nqUp ? '▲' : '▼'} {nqChange.toFixed(2)} ({nqChangePct.toFixed(2)}%)
           </div>
           {briefing.vwap != null && (
-            <div className={`mt-1 text-xs font-mono tabular-nums ${nqPrice >= briefing.vwap ? 'text-green-500' : 'text-red-500'}`}>
+            <div className="mt-1 text-xs font-mono tabular-nums" style={{ color: nqPrice >= briefing.vwap ? 'var(--green)' : 'var(--red)' }}>
               {nqPrice >= briefing.vwap ? '▲ above' : '▼ below'} VWAP ({briefing.vwap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
             </div>
           )}
         </div>
 
         {/* VIX tile */}
-        <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60">
-          <div className="text-[10px] font-mono tracking-wide text-neutral-500">VIX</div>
-          <div className="mt-1 text-xl font-semibold text-neutral-100 tabular-nums">
+        <div className="card">
+          <div className="text-[10px] font-mono tracking-wide" style={labelStyle}>VIX</div>
+          <div className="mt-1 text-xl font-semibold tabular-nums" style={valueStyle}>
             {briefing.vix?.level?.toFixed(2) ?? '-'}
           </div>
           <div
-            className={`mt-1 text-xs font-mono ${
-              briefing.vix?.status === 'extreme'
-                ? 'text-red-400'
-                : briefing.vix?.status === 'elevated'
-                ? 'text-yellow-400'
-                : 'text-green-400'
-            }`}
+            className="mt-1 text-xs font-mono"
+            style={{ color: briefing.vix?.status === 'extreme' ? 'var(--red)' : briefing.vix?.status === 'elevated' ? 'var(--yellow)' : 'var(--green)' }}
           >
             {briefing.vix?.label ?? '-'}
           </div>
@@ -269,21 +266,21 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
         {(() => {
           const ibs = briefing.ibs
           if (!ibs) return (
-            <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60">
-              <div className="text-[10px] font-mono tracking-wide text-neutral-500">IBS BIAS</div>
-              <div className="mt-1 text-xs font-mono text-neutral-600">Unavailable</div>
+            <div className="card">
+              <div className="text-[10px] font-mono tracking-wide" style={labelStyle}>IBS BIAS</div>
+              <div className="mt-1 text-xs font-mono" style={{ color: 'var(--text-dim)' }}>Unavailable</div>
             </div>
           )
           const isLongCaution  = ibs.bias === 'long_caution'
           const isShortCaution = ibs.bias === 'short_caution'
           const isWarning = isLongCaution || isShortCaution
           return (
-            <div className={`rounded-2xl border p-4 ${isWarning ? 'border-yellow-600/50 bg-yellow-950/30' : 'border-neutral-800 bg-neutral-950/60'}`}>
-              <div className="text-[10px] font-mono tracking-wide text-neutral-500">IBS BIAS</div>
-              <div className={`mt-1 text-base font-semibold font-mono ${isWarning ? 'text-yellow-400' : 'text-neutral-100'}`}>
+            <div className="card" style={isWarning ? { background: 'var(--yellow-bg)', borderColor: 'var(--yellow-border)' } : undefined}>
+              <div className="text-[10px] font-mono tracking-wide" style={labelStyle}>IBS BIAS</div>
+              <div className="mt-1 text-base font-semibold font-mono" style={{ color: isWarning ? 'var(--yellow)' : 'var(--text-primary)' }}>
                 {isLongCaution ? '⚠ Long Caution' : isShortCaution ? '⚠ Short Caution' : 'Neutral'}
               </div>
-              <div className="mt-1 text-[11px] font-mono text-neutral-400">
+              <div className="mt-1 text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
                 {isLongCaution
                   ? `Overbought overnight (IBS ${ibs.value.toFixed(2)})`
                   : isShortCaution
@@ -295,19 +292,14 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
         })()}
 
         {/* QQQ tile */}
-        <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60">
-          <div className="text-[10px] font-mono tracking-wide text-neutral-500">QQQ</div>
-          <div className="mt-1 text-xl font-semibold text-neutral-100 tabular-nums">
+        <div className="card">
+          <div className="text-[10px] font-mono tracking-wide" style={labelStyle}>QQQ</div>
+          <div className="mt-1 text-xl font-semibold tabular-nums" style={valueStyle}>
             {briefing.qqq?.price?.toFixed(2) ?? '-'}
           </div>
           <div
-            className={`mt-1 text-xs font-mono ${
-              briefing.qqq?.direction === 'bullish'
-                ? 'text-green-400'
-                : briefing.qqq?.direction === 'bearish'
-                ? 'text-red-400'
-                : 'text-neutral-400'
-            }`}
+            className="mt-1 text-xs font-mono"
+            style={{ color: briefing.qqq?.direction === 'bullish' ? 'var(--green)' : briefing.qqq?.direction === 'bearish' ? 'var(--red)' : 'var(--text-secondary)' }}
           >
             {briefing.qqq?.direction ?? '-'}
           </div>
@@ -315,11 +307,11 @@ export default function MorningBriefing({ onAutoPopulate }: MorningBriefingProps
       </div>
 
       {briefing.news && briefing.news.length > 0 && (
-        <div className="rounded-2xl border border-neutral-800 p-4 bg-neutral-950/60">
-          <div className="text-neutral-500 text-xs font-mono tracking-wide">HEADLINES</div>
-          <ul className="mt-2 space-y-1 text-sm text-neutral-300">
+        <div className="card">
+          <div className="text-xs font-mono tracking-wide" style={labelStyle}>HEADLINES</div>
+          <ul className="mt-2 space-y-1 text-sm list-disc list-inside" style={{ color: 'var(--text-secondary)' }}>
             {briefing.news.slice(0, 5).map((n, i) => (
-              <li key={i} className="list-disc list-inside marker:text-neutral-600">
+              <li key={i}>
                 {n.title ?? '-'}
               </li>
             ))}

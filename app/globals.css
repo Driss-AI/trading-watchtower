@@ -250,6 +250,9 @@ label {
   filter: brightness(1.05);
 }
 
+/* light theme: lime darkens to green, so primary buttons need light text */
+[data-theme='light'] .btn-primary { color: #fff; }
+
 .btn-green {
   background: var(--green-bg);
   color: var(--green);
