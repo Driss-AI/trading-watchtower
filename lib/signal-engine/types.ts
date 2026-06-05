@@ -5,6 +5,7 @@
 // state and produces a SignalDecision. No DB. No clock. No network.
 
 import type { PreSessionDecision, ORAssessment } from '../trading-ai'
+import type { DailyLevels } from '../levels'
 
 // ─── INPUT: SIGNAL STATE ─────────────────────────────────────────────────────
 
@@ -101,6 +102,7 @@ export interface SignalState {
   breakBar: BreakBar | null
   recent: RecentBars | null
   orderflow: OrderflowRead | null
+  levels?: DailyLevels | null // PDH/PDL/PDC liquidity (null/absent when no feed)
 
   // Freshness — set by collect(), read by the engine
   candleFreshness: Freshness
@@ -176,6 +178,7 @@ export interface AIReview {
   reasoning: string | null
   adjustedStop: number | null
   adjustedTarget: number | null
+  reversalNote?: string | null // sweep-reversal recommendation for manual execution
 }
 
 // ─── FINAL SIGNAL DECISION ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import CandleReader from '@/components/CandleReader'
 import PaperTrading from '@/components/PaperTrading'
 import ManualExecutionLog from '@/components/ManualExecutionLog'
 import BrainChat from '@/components/BrainChat'
+import LiquidityCard from '@/components/LiquidityCard'
 
 interface Session {
   orHigh?: number; orLow?: number
@@ -72,6 +73,8 @@ export default function Cockpit() {
 
       {/* ── Context (secondary) ── */}
       <SectionHeading>CONTEXT</SectionHeading>
+
+      <LiquidityCard />
 
       <MorningBriefing />
 

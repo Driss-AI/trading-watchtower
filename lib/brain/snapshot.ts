@@ -16,6 +16,8 @@ import {
 } from '../candles'
 import { getOrderflowSnapshot } from '../orderflow'
 import { fetchMarketBriefing } from '../market-data'
+import { getDailyLevels } from '../levels'
+import { buildLiquidityContext } from '../liquidity'
 
 function nyDate(): string {
   // en-CA gives YYYY-MM-DD
@@ -102,6 +104,29 @@ export async function buildBrainContext(opts: { includeMacro?: boolean } = {}): 
     }
   } catch {
     sections.push('\nOPENING RANGE: unavailable.')
+  }
+
+  // ── Liquidity map (PDH/PDL + sweeps + FVG) ──
+  try {
+    const bars = getRecentCandles(100)
+    const latest = getLatestClosedCandle()
+    const levels = await getDailyLevels('MNQ')
+    const session = await prisma.session.findFirst({ where: { date: nyDate() }, orderBy: { id: 'desc' } })
+    if (bars.length > 0 && latest) {
+      sections.push('\n' + buildLiquidityContext({
+        candles: bars,
+        lastPrice: latest.close,
+        orHigh: session?.orHigh ?? null,
+        orLow: session?.orLow ?? null,
+        levels,
+      }))
+    } else if (levels) {
+      sections.push(`\nLIQUIDITY MAP (source: ${levels.source}): PDH ${levels.pdh} | PDL ${levels.pdl} | PDC ${levels.pdc} — no live tape to map against yet.`)
+    } else {
+      sections.push('\nLIQUIDITY MAP: unavailable (no daily levels / tape).')
+    }
+  } catch {
+    sections.push('\nLIQUIDITY MAP: unavailable.')
   }
 
   // ── Risk limits ──

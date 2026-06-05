@@ -14,6 +14,7 @@ import { getLatestClosedCandle, getRecentCandles, getAvgVolume, isStale as candl
 import { assessBreakout } from '../orderflow'
 import type { MarketBriefing } from '../market-data'
 import type { PreSessionDecision, ORAssessment } from '../trading-ai'
+import type { DailyLevels } from '../levels'
 import type {
   SignalState,
   Freshness,
@@ -49,6 +50,9 @@ export interface CollectBreakoutSignalInput {
 
   // Briefing (for structural context)
   briefing: MarketBriefing | null
+
+  // Daily liquidity levels (PDH/PDL/PDC) — fetched async upstream, passed in
+  dailyLevels?: DailyLevels | null
 
   // Engine config toggles
   enablePatternGate: boolean
@@ -157,6 +161,7 @@ export function collectBreakoutSignalState(input: CollectBreakoutSignalInput): S
     breakBar,
     recent,
     orderflow,
+    levels: input.dailyLevels ?? null,
 
     candleFreshness,
     orderflowFreshness,

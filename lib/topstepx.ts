@@ -191,6 +191,24 @@ export async function getMinuteBars(
   return (data.bars ?? []).sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime())
 }
 
+// Daily bars — completed sessions only (partial today excluded). Used to derive
+// previous-day high/low/close (PDH/PDL/PDC) liquidity levels.
+export async function getDailyBars(
+  symbol: 'NQ' | 'MNQ' = 'MNQ', days = 6, live = false
+): Promise<TSXBar[]> {
+  const contractId = symbol === 'NQ' ? await getActiveNQContractId() : await getActiveMNQContractId()
+  const now = new Date()
+  const from = new Date(now.getTime() - (days + 5) * 24 * 3600 * 1000)
+  const data = await apiPost<{ bars: TSXBar[] }>('/api/History/retrieveBars', {
+    contractId, live,
+    startTime: from.toISOString(),
+    endTime: now.toISOString(),
+    unit: BarUnit.Day, unitNumber: 1, limit: days + 5,
+    includePartialBar: false,
+  })
+  return (data.bars ?? []).sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime())
+}
+
 // ─── OPENING RANGE CALCULATOR ─────────────────────────────────────────────────
 export interface ORBResult {
   orHigh: number

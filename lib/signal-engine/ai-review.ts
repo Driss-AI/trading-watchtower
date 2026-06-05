@@ -20,6 +20,7 @@ const SKIPPED_REVIEW: AIReview = {
   reasoning: null,
   adjustedStop: null,
   adjustedTarget: null,
+  reversalNote: null,
 }
 
 const UNAVAILABLE_REVIEW: AIReview = {
@@ -33,6 +34,7 @@ const UNAVAILABLE_REVIEW: AIReview = {
   reasoning: 'AI call failed — see logs',
   adjustedStop: null,
   adjustedTarget: null,
+  reversalNote: null,
 }
 
 /** Mechanical SKIP terminates without consulting the AI. */
@@ -88,6 +90,7 @@ export async function aiReview(
       mechanical.volume as any,
       state.breakBar as any,
       (state.recent?.bars ?? []) as any,
+      state.levels ?? null,
     )
 
     return {
@@ -101,6 +104,7 @@ export async function aiReview(
       reasoning: decision.reasoning ?? null,
       adjustedStop: typeof decision.adjustedStop === 'number' ? decision.adjustedStop : null,
       adjustedTarget: typeof decision.adjustedTarget === 'number' ? decision.adjustedTarget : null,
+      reversalNote: decision.reversalNote ? String(decision.reversalNote).trim() || null : null,
     }
   } catch (err) {
     console.error('[SignalEngine] aiReview failed — returning unavailable:', err)

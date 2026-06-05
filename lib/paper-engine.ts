@@ -18,6 +18,7 @@ import {
   type WSEvent,
 } from './topstepx-ws'
 import { getActiveMNQContractId } from './topstepx'
+import { getDailyLevels } from './levels'
 import { calculateRisk, POINT_VALUES } from './scoring'
 import {
   analyzePreSession,
@@ -256,6 +257,7 @@ let _openTradeMfePts = 0
 let _openTradeMaePts = 0
 let _lastDebrief: string | null = null // today's AI debrief once the session closes
 let _briefingCache: Awaited<ReturnType<typeof fetchMarketBriefing>> | null = null
+let _dailyLevels: Awaited<ReturnType<typeof getDailyLevels>> | null = null
 
 // Settings cache
 let _settings: {
@@ -760,6 +762,9 @@ async function runSignalEvaluation(
   if (!_settings) return
   if (_orHigh === null || _orLow === null) return
 
+  // Daily liquidity levels (PDH/PDL/PDC) — cached per NY date, fail-open.
+  try { _dailyLevels = await getDailyLevels('MNQ') } catch { /* keep prior */ }
+
   // Collect state — this is the ONE I/O point.
   const state = collectBreakoutSignalState({
     date: getToday(),
@@ -779,6 +784,7 @@ async function runSignalEvaluation(
     preSession: _preSession,
     orAssessment: _orAssessment,
     briefing: _briefingCache,
+    dailyLevels: _dailyLevels,
     enablePatternGate: _config.enablePatternGate,
     enableVolumeGate: _config.enableVolumeGate,
     enableOrderflowVeto: _config.enableOrderflowVeto,
@@ -800,6 +806,7 @@ async function runSignalEvaluation(
     contracts: decision.finalContracts,
     vetoTake: decision.ai.status === 'ok' ? decision.ai.vetoTake : undefined,
     vetoReason: decision.ai.vetoReason ?? undefined,
+    reversalNote: decision.ai.status === 'ok' ? (decision.ai.reversalNote ?? undefined) : undefined,
   }
 
   // Record veto in the shared feed for the cockpit / debrief.

@@ -12,6 +12,8 @@ import type { SessionImpact } from './calendar-intel'
 import type { OrderflowAssessment } from './orderflow'
 import type { PatternGate, VolumeGate } from './breakout-gate'
 import type { EngineCandle } from './candles'
+import type { DailyLevels } from './levels'
+import { buildLiquidityRead } from './liquidity'
 
 let _client: Anthropic | null = null
 
@@ -160,6 +162,11 @@ export interface BreakoutDecision {
   // veto outcomes). vetoTake=true MUST coincide with enter=false, contracts=0.
   vetoTake?: boolean
   vetoReason?: string
+  // Liquidity-aware ORB: when the break reads as a sweep-and-reverse, the brain
+  // sets enter=false for the break direction and describes the opposite setup
+  // here (direction, FVG entry zone, stop beyond the sweep, liquidity target).
+  // Surfaced to the manual execution cockpit — never auto-fired.
+  reversalNote?: string
 }
 
 // ─── PRE-SESSION ANALYSIS ────────────────────────────────────────────────────
@@ -304,11 +311,22 @@ export async function analyzeBreakout(
   volumeGate: VolumeGate | null = null,
   breakBar: EngineCandle | null = null,
   recentBars: EngineCandle[] = [],
+  levels: DailyLevels | null = null,
 ): Promise<BreakoutDecision> {
   const riskPts = Math.abs(entryPrice - stopPrice)
   const rewardPts = Math.abs(targetPrice - entryPrice)
   const rrRatio = riskPts > 0 ? rewardPts / riskPts : 0
   const riskDollars = riskPts * 2 // $2/pt per contract
+
+  // Liquidity-aware ORB read: PDH/PDL + sweeps + FVG + room, with a
+  // continuation / sweep-reversal / no-room classification the brain refines.
+  const liq = recentBars && recentBars.length >= 3
+    ? buildLiquidityRead({
+        candles: recentBars,
+        lastPrice: breakBar ? breakBar.close : entryPrice,
+        orHigh, orLow, levels, breakDirection: direction,
+      })
+    : null
 
   // Compact OHLC series so the brain can read the actual multi-bar sequence
   // (momentum, sweeps, multi-bar structure) — not just the single break bar.
@@ -384,9 +402,15 @@ ${volumeGate
   ? `\nVOLUME:
 - Break bar: ${volumeGate.breakVolume} | 20-bar avg: ${volumeGate.avgVolume.toFixed(0)} | ratio ${volumeGate.ratio.toFixed(2)}× → gate ${volumeGate.verdict.toUpperCase()}`
   : '\nVOLUME: baseline unavailable — gate NEUTRAL'}
+${liq ? `\n${liq.text}` : '\nLIQUIDITY MAP: unavailable (no daily levels / tape).'}
+
+LIQUIDITY RULES (liquidity-aware ORB):
+- NO-ROOM (break runs into nearby opposing liquidity, e.g. long into PDH just overhead): strongly favor SKIP or size down — you're buying into resting liquidity that tends to reverse.
+- SWEEP-REVERSAL (the break swept a level and was rejected): do NOT enter the break direction — set enter=false, and put the opposite setup in reversalNote (direction, FVG entry zone, stop beyond the sweep extreme, liquidity target). This is surfaced to the trader for manual execution; you are not arming it.
+- TARGET: prefer adjustedTarget at the next liquidity pool (PDH/PDL) when it still gives ≥ the planned R; otherwise keep the mechanical target.
 
 Enter or skip? If entering, choose contracts (1-${hardCap}) based on confidence and risk.
-Cite the pattern, volume ratio, and delta in your reasoning so the decision is auditable.`
+Cite the pattern, volume ratio, delta, AND the liquidity read (room / sweep / nearest FVG) in your reasoning so the decision is auditable.`
 
   try {
     const response = await getClient().messages.create({
@@ -524,6 +548,10 @@ const breakoutTool: Anthropic.Tool = {
       contracts: {
         type: 'number',
         description: 'Number of MNQ contracts (1-5). MUST respect risk limits: contracts × risk_per_contract < daily budget remaining. After a loss, max 2. Set 0 when enter=false.',
+      },
+      reversalNote: {
+        type: 'string',
+        description: 'Only when the liquidity read is SWEEP-REVERSAL: a one-line opposite-direction setup for the trader to execute manually — direction, FVG entry zone, stop beyond the sweep extreme, and the liquidity target (PDH/PDL). Empty string otherwise.',
       },
     },
     required: ['enter', 'vetoTake', 'vetoReason', 'reasoning', 'confidence', 'contracts'],
