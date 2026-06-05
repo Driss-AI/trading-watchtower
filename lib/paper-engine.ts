@@ -636,19 +636,39 @@ function passesGuards(): boolean {
   return true
 }
 
+// Counter-bias trades (against the day's pre-session lean) are HARD-blocked
+// only when the AI's pre-session conviction is high. Below that threshold the
+// bias is treated as a lean, not a veto: both directions are allowed to arm and
+// the per-breakout gates (pattern / volume / order flow) + the per-break AI
+// review judge each setup on its own merits. This stops a merely-bullish day
+// from silently filtering out every short.
+const HARD_BIAS_CONFIDENCE = 70 // % — at/above this, the daily bias is a hard filter
+
 // Direction filter shared by both paths.
 function directionAllowed(direction: 'LONG' | 'SHORT'): boolean {
-  if (_preSession && _preSession.bias !== 'neutral') {
-    const aiBias = _preSession.bias === 'long' ? 'LONG' : 'SHORT'
-    if (direction !== aiBias) {
-      console.log(`[PaperEngine] AI filtered: ${direction} trade blocked, bias is ${_preSession.bias}`)
-      return false
+  const biasKnown = !!_preSession && _preSession.bias !== 'neutral'
+  const highConviction = !!_preSession && _preSession.confidence >= HARD_BIAS_CONFIDENCE
+
+  // Low-conviction or neutral day → don't veto on direction; let the breakout
+  // gates + per-break AI review decide. (The AI review still receives the bias
+  // as context and can skip a weak counter-trend break.)
+  if (!biasKnown || !highConviction) {
+    if (biasKnown && direction !== (_preSession!.bias === 'long' ? 'LONG' : 'SHORT')) {
+      console.log(`[PaperEngine] Counter-bias ${direction} allowed to arm — ${_preSession!.bias} bias is low-conviction (${_preSession!.confidence}% < ${HARD_BIAS_CONFIDENCE}%); gates will decide`)
     }
+    return true
+  }
+
+  // High-conviction day → enforce the directional bias (and the OR read) as before.
+  const aiBias = _preSession!.bias === 'long' ? 'LONG' : 'SHORT'
+  if (direction !== aiBias) {
+    console.log(`[PaperEngine] AI filtered: ${direction} blocked — high-conviction ${_preSession!.bias} bias (${_preSession!.confidence}%)`)
+    return false
   }
   if (_orAssessment && _orAssessment.preferredDirection !== 'either' && _orAssessment.preferredDirection !== 'none') {
     const orBias = _orAssessment.preferredDirection === 'long' ? 'LONG' : 'SHORT'
     if (direction !== orBias) {
-      console.log(`[PaperEngine] AI OR filtered: ${direction} trade blocked, OR prefers ${_orAssessment.preferredDirection}`)
+      console.log(`[PaperEngine] AI OR filtered: ${direction} blocked — OR prefers ${_orAssessment.preferredDirection} on a high-conviction day`)
       return false
     }
   }
