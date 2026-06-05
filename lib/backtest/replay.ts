@@ -29,7 +29,7 @@ import type {
   ExitReason,
 } from './types'
 
-const RECENT_BAR_COUNT = 5
+const RECENT_BAR_COUNT = 100
 const AVG_VOLUME_WINDOW = 20
 
 // ── ET minute-of-day for a bar's OPEN time, DST-aware via Intl. ──

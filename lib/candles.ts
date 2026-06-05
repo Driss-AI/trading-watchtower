@@ -19,7 +19,7 @@ import type { Candle } from './patterns'
 
 // ─── TUNABLES ────────────────────────────────────────────────────────────────
 const BAR_MS         = 60_000   // 1-minute bars
-const MAX_HISTORY    = 60       // keep the last hour of closed bars
+const MAX_HISTORY    = 130      // keep ~2h of closed bars (covers a full session + 100-bar AI window)
 const STALE_MS       = 12_000   // no trades for this long → tape stale
 
 // ─── CANDLE TYPES ────────────────────────────────────────────────────────────

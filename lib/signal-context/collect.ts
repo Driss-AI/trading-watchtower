@@ -56,7 +56,7 @@ export interface CollectBreakoutSignalInput {
   enableOrderflowVeto: boolean
 }
 
-const RECENT_BAR_COUNT = 5
+const RECENT_BAR_COUNT = 100
 
 /** Build a SignalState for the breakout decision point. Reads live candle +
  *  orderflow globals; takes the rest as inputs. Returns null if essential

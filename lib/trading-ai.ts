@@ -303,11 +303,26 @@ export async function analyzeBreakout(
   patternGate: PatternGate | null = null,
   volumeGate: VolumeGate | null = null,
   breakBar: EngineCandle | null = null,
+  recentBars: EngineCandle[] = [],
 ): Promise<BreakoutDecision> {
   const riskPts = Math.abs(entryPrice - stopPrice)
   const rewardPts = Math.abs(targetPrice - entryPrice)
   const rrRatio = riskPts > 0 ? rewardPts / riskPts : 0
   const riskDollars = riskPts * 2 // $2/pt per contract
+
+  // Compact OHLC series so the brain can read the actual multi-bar sequence
+  // (momentum, sweeps, multi-bar structure) — not just the single break bar.
+  // Newest bar last; the final row is the break bar.
+  const recentSeries = recentBars && recentBars.length > 1
+    ? recentBars.map((b, i) => {
+        const t = new Date(b.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })
+        const rng = b.high - b.low
+        const bodyPct = rng > 0 ? Math.round((Math.abs(b.close - b.open) / rng) * 100) : 0
+        const dir = b.close > b.open ? '↑' : b.close < b.open ? '↓' : '·'
+        const tag = i === recentBars.length - 1 ? '  ← break bar' : ''
+        return `  ${t} ${dir} O:${b.open.toFixed(2)} H:${b.high.toFixed(2)} L:${b.low.toFixed(2)} C:${b.close.toFixed(2)} body:${bodyPct}% vol:${b.volume}${tag}`
+      }).join('\n')
+    : null
 
   const dailyBudgetRemaining = 1000 + accountState.dailyPnl
   const maxContractsByRisk = riskDollars > 0 ? Math.floor(dailyBudgetRemaining / riskDollars) : 1
@@ -357,6 +372,10 @@ ${breakBar
 - O:${breakBar.open.toFixed(2)} H:${breakBar.high.toFixed(2)} L:${breakBar.low.toFixed(2)} C:${breakBar.close.toFixed(2)}
 - Body: ${Math.abs(breakBar.close - breakBar.open).toFixed(2)}pts | Range: ${(breakBar.high - breakBar.low).toFixed(2)}pts | Ticks: ${breakBar.ticks}`
   : '\nCANDLE READ: no closed bar available (early in session or stale tape).'}
+${recentSeries
+  ? `\nRECENT 1-MIN BARS (oldest→newest, up to last 100 — read the SEQUENCE, not just the break bar: momentum building/fading, multi-bar sweeps of OR levels, failed-break-then-reverse, compression before the break):
+${recentSeries}`
+  : ''}
 ${patternGate && patternGate.patternName
   ? `- Pattern: ${patternGate.patternName} (${patternGate.patternSignal}, strength ${patternGate.patternStrength}%) — gate ${patternGate.verdict.toUpperCase()}
 - ORB context: ${patternGate.orbContext ?? 'n/a'}`

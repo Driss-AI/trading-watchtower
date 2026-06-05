@@ -87,6 +87,7 @@ export async function aiReview(
       mechanical.pattern as any,
       mechanical.volume as any,
       state.breakBar as any,
+      (state.recent?.bars ?? []) as any,
     )
 
     return {
