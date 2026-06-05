@@ -10,6 +10,7 @@ import ORBAlerts from '@/components/ORBAlerts'
 import CandleReader from '@/components/CandleReader'
 import PaperTrading from '@/components/PaperTrading'
 import ManualExecutionLog from '@/components/ManualExecutionLog'
+import BrainChat from '@/components/BrainChat'
 
 interface Session {
   orHigh?: number; orLow?: number
@@ -116,6 +117,9 @@ export default function Cockpit() {
           <LimitCard label="Max Trades / Day"  value={`${settings.maxTradesPerDay}`} />
         </div>
       )}
+
+      {/* ── Brain chat (cockpit-docked advisor drawer) ── */}
+      <BrainChat />
     </div>
   )
 }
