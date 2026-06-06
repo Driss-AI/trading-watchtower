@@ -98,8 +98,11 @@ export default function BrainChat() {
       {open && (
         <div
           style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 8001,
-            width: 'min(440px, 100vw)', height: '100vh',
+            // top:90 clears the sticky navbar (~89.5px, z:100) so the drawer
+            // header (title + NEW/–/✕ controls) isn't occluded by it. top+bottom
+            // define the height, so no explicit height needed.
+            position: 'fixed', top: 90, right: 0, bottom: 0, zIndex: 8001,
+            width: 'min(440px, 100vw)',
             display: 'flex', flexDirection: 'column',
             background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border)',
             boxShadow: '-12px 0 40px rgba(0,0,0,0.5)',
