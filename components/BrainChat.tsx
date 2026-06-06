@@ -20,9 +20,18 @@ export default function BrainChat() {
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Auto-stick to the newest message (manual scroll-up is unaffected between turns)
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, loading])
+
+  function newChat() {
+    setMessages([])
+    setError(null)
+    setInput('')
+  }
+  function minimize() { setOpen(false) }            // hide, KEEP conversation
+  function close() { setOpen(false); newChat() }    // hide AND reset
 
   async function send(text?: string) {
     const content = (text ?? input).trim()
@@ -52,6 +61,13 @@ export default function BrainChat() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
+  const headerBtn: React.CSSProperties = {
+    background: 'transparent', border: '1px solid var(--border)', borderRadius: 4,
+    color: 'var(--text-secondary)', fontFamily: MONO, cursor: 'pointer',
+    height: 28, lineHeight: 1, display: 'inline-flex', alignItems: 'center',
+    justifyContent: 'center', transition: 'all 0.15s',
+  }
+
   return (
     <>
       {/* ── Launcher ── */}
@@ -68,7 +84,13 @@ export default function BrainChat() {
             boxShadow: '0 0 22px rgba(0,212,232,0.4), 0 6px 20px rgba(0,0,0,0.5)',
           }}
         >
-          <span style={{ fontSize: 15 }}>🧠</span> Ask the Brain
+          <span style={{ fontSize: 15 }}>🧠</span>
+          {messages.length > 0 ? 'Resume Brain' : 'Ask the Brain'}
+          {messages.length > 0 && (
+            <span style={{ background: '#060607', color: 'var(--cyan)', borderRadius: 999, fontSize: 10, padding: '1px 7px', fontWeight: 700 }}>
+              {messages.filter(m => m.role === 'user').length}
+            </span>
+          )}
         </button>
       )}
 
@@ -77,7 +99,8 @@ export default function BrainChat() {
         <div
           style={{
             position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 8001,
-            width: 'min(440px, 100vw)', display: 'flex', flexDirection: 'column',
+            width: 'min(440px, 100vw)', height: '100vh',
+            display: 'flex', flexDirection: 'column',
             background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border)',
             boxShadow: '-12px 0 40px rgba(0,0,0,0.5)',
           }}
@@ -87,7 +110,7 @@ export default function BrainChat() {
 
           {/* header */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+            display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px',
             borderBottom: '1px solid var(--border)', flexShrink: 0,
           }}>
             <span style={{ fontSize: 16 }}>🧠</span>
@@ -100,20 +123,35 @@ export default function BrainChat() {
                 </span>
               </div>
             </div>
-            {messages.length > 0 && (
-              <button onClick={() => { setMessages([]); setError(null) }} title="Clear"
-                style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-dim)', fontFamily: MONO, fontSize: 10, padding: '4px 8px', cursor: 'pointer', letterSpacing: '0.08em' }}>
-                CLEAR
-              </button>
-            )}
-            <button onClick={() => setOpen(false)} title="Close"
-              style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-secondary)', fontFamily: MONO, fontSize: 13, width: 28, height: 28, cursor: 'pointer', lineHeight: 1 }}>
+
+            {/* New chat */}
+            <button onClick={newChat} title="Start a new chat" disabled={messages.length === 0 && !error}
+              style={{ ...headerBtn, padding: '0 9px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', opacity: messages.length === 0 && !error ? 0.4 : 1 }}
+              onMouseEnter={(e) => { if (!(messages.length === 0 && !error)) { e.currentTarget.style.borderColor = 'var(--cyan)'; e.currentTarget.style.color = 'var(--cyan)' } }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
+              + NEW
+            </button>
+            {/* Minimize (keep conversation) */}
+            <button onClick={minimize} title="Minimize (keep chat)"
+              style={{ ...headerBtn, width: 28, fontSize: 16 }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-bright)'; e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
+              –
+            </button>
+            {/* Close (end + reset) */}
+            <button onClick={close} title="Close (end chat)"
+              style={{ ...headerBtn, width: 28, fontSize: 13 }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--red-border)'; e.currentTarget.style.color = 'var(--red)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
               ✕
             </button>
           </div>
 
-          {/* messages */}
-          <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* messages — minHeight:0 lets this flex child actually scroll */}
+          <div ref={scrollRef} style={{
+            flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain',
+            padding: '14px', display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
             {messages.length === 0 && (
               <div style={{ margin: 'auto 0', textAlign: 'center' }}>
                 <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 16 }}>
@@ -133,13 +171,13 @@ export default function BrainChat() {
             )}
 
             {messages.map((m, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
                 <div style={{
                   maxWidth: '88%', padding: '9px 12px', borderRadius: 4,
                   fontFamily: MONO, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                   color: 'var(--text-primary)',
                   background: m.role === 'user' ? 'var(--surface)' : 'var(--card)',
-                  border: m.role === 'user' ? '1px solid var(--border)' : '1px solid var(--cyan-border, rgba(0,212,232,0.28))',
+                  border: m.role === 'user' ? '1px solid var(--border)' : '1px solid rgba(0,212,232,0.28)',
                   borderLeft: m.role === 'assistant' ? '2px solid var(--cyan)' : undefined,
                 }}>
                   {m.content}
@@ -148,7 +186,7 @@ export default function BrainChat() {
             ))}
 
             {loading && (
-              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-start', flexShrink: 0 }}>
                 <div style={{ padding: '9px 12px', borderRadius: 4, borderLeft: '2px solid var(--cyan)', background: 'var(--card)', fontFamily: MONO, fontSize: 12, color: 'var(--text-secondary)' }}>
                   <span className="blink">▋</span> reading the tape…
                 </div>
@@ -156,7 +194,7 @@ export default function BrainChat() {
             )}
 
             {error && (
-              <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--red)', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 4, padding: '8px 12px' }}>
+              <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--red)', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 4, padding: '8px 12px', flexShrink: 0 }}>
                 {error}
               </div>
             )}
